@@ -1,70 +1,77 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Filter, GraduationCap, Mail, FileText, Globe, X, Users } from 'lucide-react';
+import { Search, Filter, Mail, FileText, X, Users, Briefcase, FlaskConical } from 'lucide-react';
 import { useResearchers } from '../hooks/useResearchers';
-import { Researcher, Institution, TitleLevel, INSTITUTION_CONFIG, TITLE_CONFIG } from '../types/people';
+import { Researcher, Institution, INSTITUTION_CONFIG } from '../types/people';
 import ResearcherCard from '../components/researcher/ResearcherCard';
 import ResearcherDetailModal from '../components/researcher/ResearcherDetailModal';
 import InstitutionBadge from '../components/researcher/InstitutionBadge';
 
 const institutions: Institution[] = ['ustc', 'baqis', 'qscgba', 'zju', 'tsinghua'];
-const titleLevels: TitleLevel[] = ['pi', 'professor', 'associate', 'postdoc', 'phd'];
+const POSITION_PRESETS = ['教授', '副教授', '研究员', '博士后', '博士生'];
 
 export default function Researchers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInstitutions, setSelectedInstitutions] = useState<Institution[]>([]);
-  const [selectedTitles, setSelectedTitles] = useState<TitleLevel[]>([]);
+  const [positionKeyword, setPositionKeyword] = useState('');
+  const [researchAreaQuery, setResearchAreaQuery] = useState('');
   const [hasEmail, setHasEmail] = useState(false);
   const [hasBiography, setHasBiography] = useState(false);
-  const [hasHomepage, setHasHomepage] = useState(false);
   const [selectedResearcher, setSelectedResearcher] = useState<Researcher | null>(null);
 
   const [page, setPage] = useState(1);
-  const pageSize = 30; // 每页显示数量
+  const pageSize = 20;
 
   // 当筛选条件变化时重置页码
   useEffect(() => {
     setPage(1);
-  }, [selectedInstitutions, selectedTitles, searchQuery, hasEmail, hasBiography, hasHomepage]);
+  }, [selectedInstitutions, positionKeyword, researchAreaQuery, searchQuery, hasEmail, hasBiography]);
 
   const filters = useMemo(() => ({
+    name: searchQuery || undefined,
     institution: selectedInstitutions.length > 0 ? selectedInstitutions : undefined,
-    titleLevel: selectedTitles.length > 0 ? selectedTitles : undefined,
-    searchQuery: searchQuery || undefined,
-    hasEmail: hasEmail || undefined,
-    hasBiography: hasBiography || undefined,
-    hasHomepage: hasHomepage || undefined,
+    position: positionKeyword || undefined,
+    researchArea: researchAreaQuery || undefined,
     page,
     pageSize,
-  }), [selectedInstitutions, selectedTitles, searchQuery, hasEmail, hasBiography, hasHomepage, page]);
+  }), [selectedInstitutions, positionKeyword, researchAreaQuery, searchQuery, page, pageSize]);
 
   const { researchers, loading, total, hasMore } = useResearchers({ initialFilters: filters });
 
+  // 客户端后过滤（API 不支持的筛选条件）
+  const displayedResearchers = useMemo(() => {
+    return researchers.filter(r => {
+      if (hasEmail && !r.email) return false;
+      if (hasBiography && (!r.biography || r.biography.length < 10)) return false;
+      return true;
+    });
+  }, [researchers, hasEmail, hasBiography]);
+
   const toggleInstitution = (inst: Institution) => {
     setSelectedInstitutions(prev =>
-      prev.includes(inst)
-        ? prev.filter(i => i !== inst)
-        : [...prev, inst]
+      prev.includes(inst) ? prev.filter(i => i !== inst) : [...prev, inst]
     );
   };
 
-  const toggleTitle = (title: TitleLevel) => {
-    setSelectedTitles(prev =>
-      prev.includes(title)
-        ? prev.filter(t => t !== title)
-        : [...prev, title]
-    );
+  const togglePosition = (pos: string) => {
+    setPositionKeyword(prev => (prev === pos ? '' : pos));
   };
 
   const clearFilters = () => {
     setSelectedInstitutions([]);
-    setSelectedTitles([]);
+    setPositionKeyword('');
+    setResearchAreaQuery('');
     setHasEmail(false);
     setHasBiography(false);
-    setHasHomepage(false);
     setSearchQuery('');
   };
 
-  const hasActiveFilters = selectedInstitutions.length > 0 || selectedTitles.length > 0 || hasEmail || hasBiography || hasHomepage || searchQuery;
+  const hasActiveFilters =
+    selectedInstitutions.length > 0 ||
+    positionKeyword ||
+    researchAreaQuery ||
+    hasEmail ||
+    hasBiography ||
+    searchQuery;
 
   return (
     <div>
@@ -82,7 +89,7 @@ export default function Researchers() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8892aa] pointer-events-none" />
           <input
             type="text"
-            placeholder="搜索姓名、机构、研究方向..."
+            placeholder="按姓名搜索（如：潘建伟）..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-[rgba(16,16,31,0.6)] border border-[rgba(59,130,246,0.15)] rounded-lg pl-10 pr-4 py-2.5 text-[#e0e8ff] placeholder:text-[#8892aa] focus:outline-none focus:border-blue-500/50 focus:shadow-glow-sm transition-all"
@@ -99,8 +106,8 @@ export default function Researchers() {
       </div>
 
       {/* Filters */}
-      <div className="glass-card rounded-xl p-4 mb-4">
-        <div className="flex items-center gap-2 mb-3">
+      <div className="glass-card rounded-xl p-4 mb-4 space-y-4">
+        <div className="flex items-center gap-2">
           <Filter className="w-3.5 h-3.5 text-blue-400" />
           <span className="font-medium text-sm text-[#c8d4f0]">筛选条件</span>
           {hasActiveFilters && (
@@ -114,7 +121,7 @@ export default function Researchers() {
         </div>
 
         {/* Institution Filters */}
-        <div className="mb-3">
+        <div>
           <div className="text-[10px] text-[#8892aa] mb-2 uppercase tracking-widest">所属机构</div>
           <div className="flex flex-wrap gap-2">
             {institutions.map(inst => (
@@ -129,35 +136,59 @@ export default function Researchers() {
           </div>
         </div>
 
-        {/* Title Filters */}
-        <div className="mb-3">
+        {/* Position Presets */}
+        <div>
           <div className="text-[10px] text-[#8892aa] mb-2 flex items-center gap-1 uppercase tracking-widest">
-            <GraduationCap className="w-3 h-3" />
-            职称级别
+            <Briefcase className="w-3 h-3" />
+            职位筛选
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {titleLevels.map(title => (
+            {POSITION_PRESETS.map(pos => (
               <button
-                key={title}
-                onClick={() => toggleTitle(title)}
+                key={pos}
+                onClick={() => togglePosition(pos)}
                 className={`btn-glow px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  selectedTitles.includes(title)
+                  positionKeyword === pos
                     ? 'bg-blue-600 text-white border border-blue-500 shadow-glow-sm'
                     : 'bg-[rgba(59,130,246,0.06)] border border-[rgba(59,130,246,0.15)] text-[#8892aa] hover:text-[#c8d4f0] hover:border-blue-500/30'
                 }`}
               >
-                {TITLE_CONFIG[title].label}
+                {pos}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Quick Filters — pills */}
+        {/* Research Area Input */}
+        <div>
+          <div className="text-[10px] text-[#8892aa] mb-2 flex items-center gap-1 uppercase tracking-widest">
+            <FlaskConical className="w-3 h-3" />
+            研究方向
+          </div>
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="如：量子计算、超导量子、量子纠错..."
+              value={researchAreaQuery}
+              onChange={(e) => setResearchAreaQuery(e.target.value)}
+              className="w-full bg-[rgba(16,16,31,0.6)] border border-[rgba(59,130,246,0.15)] rounded-lg px-3 py-2 text-[#e0e8ff] text-sm placeholder:text-[#8892aa] focus:outline-none focus:border-blue-500/50 transition-all"
+            />
+            {researchAreaQuery && (
+              <button
+                onClick={() => setResearchAreaQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-[rgba(59,130,246,0.1)] rounded transition-colors"
+              >
+                <X className="w-3 h-3 text-[#8892aa] hover:text-blue-400" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Filters */}
         <div className="flex flex-wrap gap-1.5">
           {([
             { key: 'email', label: '有邮箱', icon: <Mail className="w-3 h-3" />, active: hasEmail, toggle: () => setHasEmail(v => !v) },
             { key: 'bio', label: '有简介', icon: <FileText className="w-3 h-3" />, active: hasBiography, toggle: () => setHasBiography(v => !v) },
-            { key: 'web', label: '有主页', icon: <Globe className="w-3 h-3" />, active: hasHomepage, toggle: () => setHasHomepage(v => !v) },
           ] as const).map(item => (
             <button
               key={item.key}
@@ -180,7 +211,7 @@ export default function Researchers() {
         <div className="flex flex-wrap gap-1.5 mb-4">
           {searchQuery && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[rgba(59,130,246,0.1)] text-blue-300 text-xs rounded-full border border-[rgba(59,130,246,0.25)]">
-              搜索: {searchQuery}
+              姓名: {searchQuery}
               <button onClick={() => setSearchQuery('')} className="hover:text-white ml-0.5">
                 <X className="w-3 h-3" />
               </button>
@@ -194,28 +225,36 @@ export default function Researchers() {
               </button>
             </span>
           ))}
-          {selectedTitles.map(title => (
-            <span key={title} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[rgba(59,130,246,0.08)] text-[#c8d4f0] text-xs rounded-full border border-[rgba(59,130,246,0.15)]">
-              {TITLE_CONFIG[title].label}
-              <button onClick={() => toggleTitle(title)} className="hover:text-white ml-0.5">
+          {positionKeyword && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[rgba(59,130,246,0.08)] text-[#c8d4f0] text-xs rounded-full border border-[rgba(59,130,246,0.15)]">
+              职位: {positionKeyword}
+              <button onClick={() => setPositionKeyword('')} className="hover:text-white ml-0.5">
                 <X className="w-3 h-3" />
               </button>
             </span>
-          ))}
+          )}
+          {researchAreaQuery && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[rgba(59,130,246,0.08)] text-[#c8d4f0] text-xs rounded-full border border-[rgba(59,130,246,0.15)]">
+              研究: {researchAreaQuery}
+              <button onClick={() => setResearchAreaQuery('')} className="hover:text-white ml-0.5">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
         </div>
       )}
 
       {/* Researchers Grid */}
-      {loading ? (
+      {loading && page === 1 ? (
         <div className="glass-card rounded-xl p-12 text-center">
           <div className="inline-block w-8 h-8 border-2 border-blue-500/30 border-t-blue-400 rounded-full animate-spin"></div>
           <p className="text-[#8892aa] mt-4 text-sm">加载研究人员数据...</p>
         </div>
       ) : (
         <>
-          {researchers.length > 0 ? (
+          {displayedResearchers.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {researchers.map((researcher, index) => (
+              {displayedResearchers.map((researcher, index) => (
                 <div
                   key={researcher.id}
                   className="animate-in fade-in slide-in-from-bottom-4 h-full"
@@ -239,7 +278,7 @@ export default function Researchers() {
           {/* Results Count & Load More */}
           <div className="text-center py-6 space-y-3">
             <p className="text-[#8892aa] text-xs">
-              显示 <span className="text-blue-400">{researchers.length}</span> / <span className="text-blue-400">{total}</span> 条结果
+              显示 <span className="text-blue-400">{displayedResearchers.length}</span> / <span className="text-blue-400">{total}</span> 条结果
             </p>
             {hasMore && (
               <button

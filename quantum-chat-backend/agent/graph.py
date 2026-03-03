@@ -52,11 +52,16 @@ def _build_llm() -> ChatOpenAI:
 # ─── 初始化 ────────────────────────────────────────────────────────────────────
 
 def _load_skills_into_prompt(base_prompt: str) -> str:
-    """在启动时扫描 skills/ 目录，将所有 SKILL.md 内容拼接到 system prompt。"""
+    """
+    在启动时扫描 skills/ 目录，将技能索引（仅名称+描述，每条一行）注入 system prompt。
+
+    完整 Skill 内容不再预加载——agent 在判断某个 Skill 与当前任务相关时，
+    应主动调用 get_skill(name) 工具按需获取，避免将大量无关文本堆入 prompt。
+    """
     if not _SKILLS_DIR.exists():
         return base_prompt
 
-    skill_sections: list[str] = []
+    skill_lines: list[str] = []
     for skill_dir in sorted(_SKILLS_DIR.iterdir()):
         if not skill_dir.is_dir():
             continue
@@ -64,21 +69,21 @@ def _load_skills_into_prompt(base_prompt: str) -> str:
         if not skill_file.exists():
             continue
         content = skill_file.read_text(encoding="utf-8")
-        # 提取 description
         desc_match = re.search(r'^description:\s*(.+)$', content, re.MULTILINE)
-        desc = desc_match.group(1).strip() if desc_match else ""
-        # 只保留 frontmatter 后的正文内容
-        body = re.sub(r'^---.*?---\s*', '', content, count=1, flags=re.DOTALL).strip()
-        skill_sections.append(f"### Skill: {skill_dir.name}\n{body}")
+        desc = desc_match.group(1).strip() if desc_match else "（无描述）"
+        skill_lines.append(f"- **{skill_dir.name}**: {desc}")
 
-    if not skill_sections:
+    if not skill_lines:
         return base_prompt
 
     skills_block = (
-        "\n\n## 已加载的技能 (Skills)\n"
-        + "\n\n".join(skill_sections)
+        "\n\n## 可用技能索引 (Skills)\n"
+        "以下是当前已注册的技能列表。当你判断某个技能与当前任务相关时，"
+        "调用 `get_skill(name)` 工具获取该技能的完整操作指南，"
+        "再按照指南执行。无需提前加载所有技能。\n\n"
+        + "\n".join(skill_lines)
     )
-    logger.info("加载 %d 个 Skills 到 system prompt", len(skill_sections))
+    logger.info("注入 %d 个 Skills 索引到 system prompt（按需加载模式）", len(skill_lines))
     return base_prompt + skills_block
 
 

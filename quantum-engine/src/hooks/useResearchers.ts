@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { researcherApi } from '../api/researchers';
-import { Researcher, ResearcherFilters, Institution, TitleLevel } from '../types/people';
+import { Researcher, ResearcherFilters } from '../types/people';
 
 interface UseResearchersOptions {
   initialFilters?: ResearcherFilters;
@@ -150,39 +150,6 @@ export function useResearcherDetail(researcherId: string | null) {
   return { researcher, loading, error };
 }
 
-/**
- * 获取统计信息
- */
-export function useResearcherStatistics() {
-  const [statistics, setStatistics] = useState<{
-    total: number;
-    byInstitution: Record<Institution, number>;
-    byTitle: Record<TitleLevel, number>;
-    topTags: [string, number][];
-  } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const stats = await researcherApi.getStatistics();
-        setStatistics(stats);
-      } catch (err) {
-        setError(err as Error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, []);
-
-  return { statistics, loading, error };
-}
 
 /**
  * 搜索研究人员（带防抖）

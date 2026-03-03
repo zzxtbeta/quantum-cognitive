@@ -36,10 +36,7 @@ function MessageContent({ content, isStreaming }: { content: string; isStreaming
     );
   }
   // 按段落渲染
-  const paragraphs = content.split('\n').filter((_, i, arr) => {
-    // 最多保留一个连续空行
-    return true;
-  });
+  const paragraphs = content.split('\n');
   return (
     <>
       {paragraphs.map((line, i) =>

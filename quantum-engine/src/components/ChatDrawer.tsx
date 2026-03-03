@@ -9,7 +9,7 @@ interface ChatDrawerProps {
 
 export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
   const { messages, loading, sendMessage, clearMessages } = useChat();
-  const context = null; // context panel reserved for future signal-drag feature
+  const context = null as { type: 'signal' | 'company'; title: string } | null; // context panel reserved for future signal-drag feature
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 

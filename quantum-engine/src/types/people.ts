@@ -83,17 +83,61 @@ export interface RawPeopleData {
   biography: string;
 }
 
+// 真实 API 返回的机构字段
+export interface PeopleApiInstitution {
+  id: number;
+  name_cn: string | null;
+  name_en: string | null;
+  standardized_name: string | null;
+  country: string | null;
+}
+
+// 真实 API 返回的人员条目
+export interface PeopleApiItem {
+  id: number;
+  name: string;
+  name_en: string | null;
+  position: string | null;
+  department: string | null;
+  email: string | null;
+  research_areas: string[];
+  paper_count: number;
+  h_index: number | null;
+  introduction: string | null;
+  data_source: string;
+  current_institution: PeopleApiInstitution | null;
+}
+
+// 真实 API 搜索响应
+export interface PeopleSearchResponse {
+  total: number;
+  page: number;
+  page_size: number;
+  institutions_matched: PeopleApiInstitution[];
+  items: PeopleApiItem[];
+}
+
 // 筛选参数
 export interface ResearcherFilters {
-  institution?: Institution[];
-  titleLevel?: TitleLevel[];
-  researchTag?: string;
+  // API 端过滤（传递给后端）
+  name?: string;            // 姓名关键词
+  institution?: Institution[];    // 机构枚举，调用时映射为关键词
+  position?: string;        // 职位关键词（如"教授"、"博士后"）
+  researchArea?: string;    // 研究方向关键词
+
+  // 客户端后过滤
   hasEmail?: boolean;
   hasBiography?: boolean;
-  hasHomepage?: boolean;
-  searchQuery?: string;
+
+  // 分页
   page?: number;
   pageSize?: number;
+
+  // 兼容旧字段（已废弃）
+  titleLevel?: TitleLevel[];
+  researchTag?: string;
+  hasHomepage?: boolean;
+  searchQuery?: string;
 }
 
 // 响应类型
@@ -121,5 +165,5 @@ export const INSTITUTION_CONFIG: Record<Institution, { name: string; shortName: 
   tsinghua: { name: '清华大学', shortName: '清华', color: 'bg-red-600', icon: '' },
   ustc: { name: '中国科学技术大学', shortName: '中科大', color: 'bg-indigo-600', icon: '' },
   zju: { name: '浙江大学', shortName: '浙大', color: 'bg-emerald-600', icon: '' },
-  other: { name: '其他机构', shortName: '其他', color: 'bg-slate-600', icon: '' },
+  other: { name: '其他机构', shortName: '其他', color: 'bg-slate-500', icon: '' },
 };

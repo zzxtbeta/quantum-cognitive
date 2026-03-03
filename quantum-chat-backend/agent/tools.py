@@ -138,8 +138,8 @@ def save_skill(
     return (
         f"✅ Skill '{name}' 已保存至 {skill_file}\n"
         f"📝 描述：{description}\n"
-        f"⚡ 下次新建对话时，该 Skill 将自动注入到 system prompt 中并生效。\n"
-        f"🔍 当前会话中可通过 read_file /skills/{name}/SKILL.md 查看内容。"
+        f"⚡ 下次新建对话时，该 Skill 将出现在技能索引中。\n"
+        f"🔍 在当前或未来对话中，可调用 get_skill('{name}') 获取完整指南。"
     )
 
 
@@ -169,9 +169,38 @@ def list_skills() -> str:
     return "已保存的 Skills：\n" + "\n".join(skills)
 
 
+def get_skill(name: str) -> str:
+    """
+    获取指定 Skill 的完整操作指南（When to Use + Instructions）。
+
+    当你在技能索引中发现某个 Skill 与当前任务相关时，调用此工具获取完整指令。
+    只在确实需要该 Skill 的详细步骤时调用，避免不必要的工具调用。
+
+    Args:
+        name: Skill 名称，与技能索引（系统提示末尾列表）中的名称完全一致，
+              例如 'quantum-error-correction-analysis'
+    """
+    if not _SKILLS_DIR.exists():
+        return f"ERROR: skills/ 目录不存在，尚未创建任何 Skill。"
+
+    skill_file = _SKILLS_DIR / name / "SKILL.md"
+    if not skill_file.exists():
+        # 提示可用的 skill 名称
+        available = [d.name for d in sorted(_SKILLS_DIR.iterdir()) if d.is_dir() and (d / "SKILL.md").exists()]
+        if available:
+            return f"ERROR: Skill '{name}' 不存在。可用技能：{', '.join(available)}"
+        return f"ERROR: Skill '{name}' 不存在，且当前还没有任何已保存的 Skill。"
+
+    content = skill_file.read_text(encoding="utf-8")
+    # 去除 YAML frontmatter，只返回正文
+    body = re.sub(r'^---.*?---\s*', '', content, count=1, flags=re.DOTALL).strip()
+    return f"# Skill: {name}\n\n{body}"
+
+
 # 注册到 deepagents 的工具列表
 TOOLS = [
     save_skill,
     list_skills,
+    get_skill,
     _make_tavily_tool(),   # Tavily 网络搜索（实时信息）
 ]

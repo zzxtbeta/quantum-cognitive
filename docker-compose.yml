@@ -1,0 +1,70 @@
+version: '3.9'
+
+# ──────────────────────────────────────────────────────────
+#  量子认知引擎 — Docker Compose 部署配置
+#
+#  使用前：复制 .env.example → .env，填写 API Key 和 ECS IP
+#  启动：docker compose up -d
+#  更新：./deploy.sh
+# ──────────────────────────────────────────────────────────
+
+services:
+
+  # ── 后端：FastAPI + LangGraph 对话服务 ──────────────────
+  backend:
+    build:
+      context: ./quantum-chat-backend
+      dockerfile: Dockerfile
+    container_name: quantum-backend
+    restart: unless-stopped
+    ports:
+      - "8003:8003"      # ECS 安全组需开放 8003（仅后端直接调试用，前端走 Nginx 内网转发）
+    environment:
+      - PORT=8003
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+      - SQLITE_DB_PATH=/app/data/memory.db
+      # CORS：允许前端域名访问，JSON 数组格式（pydantic-settings v2 要求）
+      - 'CORS_ORIGINS=["http://${ECS_IP:-localhost}:3080","http://localhost:3080","http://localhost:3000"]'
+    volumes:
+      - quantum-backend-data:/app/data         # SQLite 对话记忆持久化
+      - quantum-backend-skills:/app/agent/skills  # 用户创建的 Skill 持久化
+      - quantum-backend-logs:/app/logs         # 日志文件
+    networks:
+      - quantum-net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8003/health', timeout=5)\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+  # ── 前端：React + Nginx 静态托管 + 反向代理 ─────────────
+  frontend:
+    build:
+      context: ./quantum-engine
+      dockerfile: Dockerfile
+    container_name: quantum-frontend
+    restart: unless-stopped
+    ports:
+      - "3080:80"        # 浏览器访问 http://YOUR_ECS_IP:3080
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - quantum-net
+
+# ── 持久化数据卷 ───────────────────────────────────────────
+volumes:
+  quantum-backend-data:
+    name: quantum-backend-data
+  quantum-backend-skills:
+    name: quantum-backend-skills
+  quantum-backend-logs:
+    name: quantum-backend-logs
+
+# ── 内部网络（前后端互联，不暴露外部）────────────────────
+networks:
+  quantum-net:
+    driver: bridge
+    name: quantum-net

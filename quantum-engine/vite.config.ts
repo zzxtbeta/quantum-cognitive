@@ -10,6 +10,9 @@ export default defineConfig({
         target: 'http://47.110.226.140:8080',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
+        headers: {
+          'X-API-Key': 'xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK',
+        },
       },
       '/chat-api': {
         target: 'http://localhost:8001',

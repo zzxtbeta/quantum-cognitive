@@ -3,7 +3,7 @@
  * 将原始 Parquet 数据转换为标准化的 Researcher 类型
  */
 
-import { Researcher, RawPeopleData, TitleLevel, Institution } from '../types/people';
+import { Researcher, RawPeopleData, TitleLevel, Institution, PeopleApiItem } from '../types/people';
 
 /**
  * 生成唯一 ID
@@ -245,4 +245,38 @@ export function adaptRawList(rawList: RawPeopleData[]): Researcher[] {
 export function sortByTitleLevel(a: Researcher, b: Researcher): number {
   const order = { pi: 0, professor: 1, associate: 2, postdoc: 3, phd: 4, other: 5 };
   return order[a.titleNormalized] - order[b.titleNormalized];
+}
+
+/**
+ * 将真实 API 返回的人员条目转换为标准化的 Researcher
+ */
+export function adaptApiItemToResearcher(item: PeopleApiItem): Researcher {
+  const institutionName =
+    item.current_institution?.name_cn ||
+    item.current_institution?.standardized_name ||
+    '';
+
+  const biography = item.introduction || '';
+  const researchTags = item.research_areas.length > 0
+    ? item.research_areas
+    : extractResearchTags(undefined, biography);
+
+  return {
+    id: String(item.id),
+    name: item.name,
+    nameEn: item.name_en || undefined,
+    url: '',
+    title: item.position || '未知职位',
+    titleNormalized: normalizeTitle(item.position || ''),
+    email: item.email || '',
+    institution: normalizeInstitution(institutionName),
+    institutionRaw: institutionName || '未知机构',
+    department: item.department || undefined,
+    researchDirection: item.research_areas.join('、') || undefined,
+    researchTags,
+    biography,
+    paperCount: item.paper_count,
+    education: parseEducation(biography),
+    career: parseCareer(biography),
+  };
 }

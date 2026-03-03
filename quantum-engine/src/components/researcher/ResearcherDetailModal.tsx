@@ -1,4 +1,5 @@
 import { X, Mail, Link2, Building2, GraduationCap, Briefcase, Tag, Send, Bookmark } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { Researcher } from '../../types/people';
 import InstitutionBadge from './InstitutionBadge';
 import ResearchTagCloud from './ResearchTagCloud';
@@ -9,8 +10,8 @@ interface ResearcherDetailModalProps {
 }
 
 export default function ResearcherDetailModal({ researcher, onClose }: ResearcherDetailModalProps) {
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+  const modal = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
       <div className="glass-card rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-[rgba(5,5,14,0.95)] backdrop-blur-lg border-b border-[rgba(59,130,246,0.12)] p-6 flex items-start justify-between">
@@ -168,4 +169,5 @@ export default function ResearcherDetailModal({ researcher, onClose }: Researche
       </div>
     </div>
   );
+  return createPortal(modal, document.body);
 }
