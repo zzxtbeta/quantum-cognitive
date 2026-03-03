@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>Domains API Test</h1>
+    <button onclick="testAPI()">Test API</button>
+    <pre id="output"></pre>
+
+    <script>
+        async function testAPI() {
+            const output = document.getElementById('output');
+            output.textContent = 'Loading...';
+            
+            try {
+                const response = await fetch('/api/gold/domains?min_paper_count=0', {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-API-Key': 'xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK'
+                    }
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', [...response.headers.entries()]);
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                output.textContent = JSON.stringify(data, null, 2);
+                
+                // 分析数据
+                if (Array.isArray(data)) {
+                    console.log('✅ Data is array, length:', data.length);
+                    if (data.length > 0) {
+                        console.log('First item:', data[0]);
+                        console.log('Children count:', data[0].children?.length);
+                    }
+                } else {
+                    console.log('❌ Data is not array:', typeof data);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                output.textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

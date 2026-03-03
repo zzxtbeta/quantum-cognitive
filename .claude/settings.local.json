@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build)",
+      "Bash(python convert_parquet.py)",
+      "Bash(python -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(f''Total: {len\\(data\\)}''\\); from collections import Counter; inst=Counter\\(r[''institution''] for r in data\\); print\\(''By institution:''\\); [print\\(f''  {k}: {v}''\\) for k,v in inst.most_common\\(\\)]\")",
+      "Bash(python -c \"import json; data=json.load\\(open\\(''people.json'', encoding=''utf-8''\\)\\); print\\(f''Total: {len\\(data\\)}''\\); print\\(''First:'', data[0][''name''], ''@'', data[0][''institutionRaw'']\\); print\\(''Last:'', data[-1][''name''], ''@'', data[-1][''institutionRaw'']\\)\")"
+    ]
+  }
+}

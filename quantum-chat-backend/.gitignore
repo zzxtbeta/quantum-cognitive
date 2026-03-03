@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 运行时数据
+memory.db
+memory.db-shm
+memory.db-wal
+logs/
+
+# 环境变量
+.env
+
+# 编辑器
+.vscode/
+.idea/
+*.sw?

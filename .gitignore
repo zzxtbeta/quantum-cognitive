@@ -1,0 +1,36 @@
+# ─── 前端 ────────────────────────────────────────────────
+quantum-engine/node_modules/
+quantum-engine/dist/
+quantum-engine/.env
+quantum-engine/.env.local
+
+# ─── 后端 ────────────────────────────────────────────────
+quantum-chat-backend/__pycache__/
+quantum-chat-backend/**/__pycache__/
+quantum-chat-backend/*.pyc
+quantum-chat-backend/.pytest_cache/
+quantum-chat-backend/.venv/
+quantum-chat-backend/venv/
+
+# 运行时数据（不进仓库）
+quantum-chat-backend/memory.db
+quantum-chat-backend/memory.db-shm
+quantum-chat-backend/memory.db-wal
+quantum-chat-backend/logs/
+
+# 环境变量（含 API key，绝对不能提交）
+quantum-chat-backend/.env
+.env
+
+# ─── 数据文件 ─────────────────────────────────────────────
+data/**/*.parquet
+data/**/*.csv
+data/**/*.json
+
+# ─── 系统 ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.sw?
+.idea/
+.vscode/
