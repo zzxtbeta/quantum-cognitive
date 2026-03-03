@@ -45,8 +45,10 @@ services:
     container_name: quantum-frontend
     restart: unless-stopped
     ports:
-      - "3080:80"        # 浏览器访问 http://YOUR_ECS_IP:3080
-    depends_on:
+      - "3080:80"        # 浏览器访问 http://YOUR_ECS_IP:3080    # host-gateway 让容器内的 host.docker.internal 解析到宿主机内网 IP
+    # Nginx 通过它直接走内网访问宿主机上的服务，避免 hairpin NAT 超时
+    extra_hosts:
+      - "host.docker.internal:host-gateway"    depends_on:
       backend:
         condition: service_healthy
     networks:
