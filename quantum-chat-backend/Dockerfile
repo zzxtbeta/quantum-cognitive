@@ -4,15 +4,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 安装系统依赖（sqlite3 已内置于 Python）
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# 安装系统依赖（先换阿里云 apt 镜像源，国内构建快 10 倍）
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
 # 先复制 requirements，利用 Docker 层缓存——
 # 只有 requirements 变了才重新 pip install
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
 
 # 复制源码（不含 .env / memory.db / logs，见 .dockerignore）
 COPY . .

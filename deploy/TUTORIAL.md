@@ -39,6 +39,30 @@ docker compose version
 
 > **CentOS 用户**：`curl -fsSL https://get.docker.com | sh` 同样适用。
 
+### 1.3 配置 Docker 镜像加速（中国大陆必须做）
+
+国内 ECS 默认无法访问 Docker Hub，需配置镜像源，否则 `docker compose up --build` 会超时报错。
+
+```bash
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json <<'EOF'
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io",
+    "https://dockerproxy.com",
+    "https://mirror.baidubce.com",
+    "https://ccr.ccs.tencentyun.com"
+  ]
+}
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+
+# 验证（能看到 Registry Mirrors 列表即正常）
+docker info | grep -A 5 "Registry Mirrors"
+```
+
 ---
 
 ## 第二步：部署代码

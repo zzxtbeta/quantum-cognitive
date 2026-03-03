@@ -5,7 +5,7 @@ WORKDIR /app
 
 # 先复制 package.json，利用层缓存（只有依赖变了才重装）
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --registry=https://registry.npmmirror.com
 
 # 复制源码
 COPY . .
