@@ -1,7 +1,7 @@
 import { X, Building2, User, Lightbulb, ExternalLink, MessageSquare, Bookmark, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { SignalDetail, SignalType } from '../types';
+import { SignalDetail } from '../types';
 import { useAppContext } from '../contexts/AppContext';
 import { domainApi } from '../api/domains';
 import { useLayout } from '../contexts/LayoutContext';
@@ -90,7 +90,6 @@ export default function SignalDetailModal({ signal, onClose, onOpenChat }: Signa
   const [toastMessage, setToastMessage] = useState('');
 
   const config = priorityConfig[signal.priority];
-  const relatedSignals: typeof signal[] = [];
 
   const showToastMessage = (msg: string) => {
     setToastMessage(msg);
