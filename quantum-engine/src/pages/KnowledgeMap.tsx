@@ -44,6 +44,8 @@ export default function KnowledgeMap() {
   const [expandedDirections, setExpandedDirections] = useState<string[]>([]); // 展开的direction
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedPaper, setSelectedPaper] = useState<SignalDetail | null>(null);
+  // 论文数量缓存：记录每个节点实际拉取到的数量（弥补后端 paper_count=0 的问题）
+  const [paperCountCache, setPaperCountCache] = useState<Record<string, number>>({});
 
   // 先定义categories和routes，因为后面会用到
   const categories = useMemo(() => {
@@ -97,6 +99,13 @@ export default function KnowledgeMap() {
   }, [selectedNode, domains, routes]);
 
   const { papers, loading: papersLoading, total: papersTotal } = useDomainPapers(currentDomainIds);
+  
+  // 当选中节点并拉取到实际论文数量后，写入缓存
+  useEffect(() => {
+    if (selectedNode && papersTotal > 0) {
+      setPaperCountCache(prev => ({ ...prev, [selectedNode.id]: papersTotal }));
+    }
+  }, [selectedNode?.id, papersTotal]);
   
   // 调试论文数据
   console.log('📄 Papers for domain:', {
@@ -321,7 +330,14 @@ export default function KnowledgeMap() {
                                             ? 'text-blue-400/80' 
                                             : 'text-slate-500 group-hover:text-slate-400'
                                         }`}>
-                                          {tech.paperCount} 篇论文
+                                          {paperCountCache[tech.id] !== undefined
+                                            ? `${paperCountCache[tech.id]} 篇论文`
+                                            : currentNode?.id === tech.id && papersLoading
+                                              ? '加载中…'
+                                              : tech.paperCount > 0
+                                                ? `${tech.paperCount} 篇论文`
+                                                : '—'
+                                          }
                                         </span>
                                       </div>
                                     </div>
@@ -355,7 +371,7 @@ export default function KnowledgeMap() {
                 <div className="flex items-center gap-4 text-sm text-slate-400">
                   <span className="flex items-center gap-1.5">
                     <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                    {currentNode.paperCount} 篇论文
+                    {papersTotal > 0 ? papersTotal : (paperCountCache[currentNode.id] ?? currentNode.paperCount)} 篇论文
                     {papersTotal > 0 && papersTotal !== currentNode.paperCount && (
                       <span className="text-xs text-blue-300">
                         (API返回 {papersTotal} 篇)

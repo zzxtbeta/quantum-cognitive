@@ -41,7 +41,6 @@ export interface BackendPaper {
   abstract: string;
   authors: BackendAuthor[];
   publish_date: string;
-  influence_score: number | null;
   extraction_id: number;
   research_problem: BackendResearchProblem | null;
   tech_route: BackendTechRoute | null;

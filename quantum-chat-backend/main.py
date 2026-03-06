@@ -23,8 +23,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from core.config import settings
-from api import health_router, chat_router, skills_router
+from api import health_router, chat_router, skills_router, deep_research_router
 from agent import init_agent
+from dagent import init_deep_agent
 
 # ─── 日志：每次启动写入 logs/YYYY-MM-DD_HH-MM-SS.log ──────────────────────────
 _LOGS_DIR = Path(__file__).parent / "logs"
@@ -49,16 +50,21 @@ logging.getLogger("app").info("日志文件：%s", _log_file)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期：startup 时初始化 agent，shutdown 时清理。"""
-    await init_agent()
+    await init_agent()        # 简单对话 Agent（原有）
+    await init_deep_agent()   # DeepAgent 多子Agent 研究引擎（新增）
     yield
     # 可在此处清理资源
 
 
 app = FastAPI(
     lifespan=lifespan,
-    title="Quantum Chat Backend",
-    description="量子科技赛道认知引擎 - LLM 对话服务（基于 deepagents + Qwen）",
-    version="0.2.0",
+    title="Quantum Chat Backend × DeepAgent",
+    description=(
+        "量子科技赛道认知引擎\n\n"
+        "• POST /chat/stream — 馬勤/对话模式（原有）\n"
+        "• POST /deep/stream — DeepAgent 深度研究模式（新）"
+    ),
+    version="0.3.0",
 )
 
 app.add_middleware(
@@ -72,6 +78,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(chat_router)
 app.include_router(skills_router)
+app.include_router(deep_research_router)  # DeepAgent 深度研究模式
 
 
 @app.exception_handler(Exception)

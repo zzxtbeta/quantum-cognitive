@@ -1,9 +1,10 @@
 import { X, Building2, User, Lightbulb, ExternalLink, MessageSquare, Bookmark, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { SignalDetail, SignalType } from '../types';
 import { useAppContext } from '../contexts/AppContext';
-import { realWorldSignals } from '../data/realWorldSignals';
 import { domainApi } from '../api/domains';
+import { useLayout } from '../contexts/LayoutContext';
 
 interface SignalDetailModalProps {
   signal: SignalDetail;
@@ -83,6 +84,7 @@ function EntityCard({ icon, label, count, unit }: { icon: React.ReactNode; label
 
 export default function SignalDetailModal({ signal, onClose, onOpenChat }: SignalDetailModalProps) {
   const { addFocusItem, addNote, focusItems } = useAppContext();
+  const { isChatOpen, chatWidth, isSidebarCollapsed } = useLayout();
   const [showToast, setShowToast] = useState(false);
   const [domainNames, setDomainNames] = useState<Record<number, string>>({});
 
@@ -98,7 +100,7 @@ export default function SignalDetailModal({ signal, onClose, onOpenChat }: Signa
   const [activeTab, setActiveTab] = useState<SignalType | '全部'>('全部');
 
   const config = priorityConfig[signal.priority];
-  const relatedSignals = realWorldSignals.filter(s => s.id !== signal.id).slice(0, 8);
+  const relatedSignals: typeof signal[] = [];
   const filteredRelatedSignals =
     activeTab === '全部' ? relatedSignals : relatedSignals.filter(s => s.type === activeTab);
 
@@ -133,8 +135,16 @@ export default function SignalDetailModal({ signal, onClose, onOpenChat }: Signa
     showToastMessage('已创建笔记，可在「我的笔记」中查看和编辑');
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 backdrop-blur-sm"
+      style={{
+        paddingLeft: (isSidebarCollapsed ? 8 : 248),
+        paddingRight: (isChatOpen ? chatWidth + 8 : 8),
+        paddingTop: 16,
+        paddingBottom: 16,
+      }}
+    >
       <div className="glass-card rounded-xl w-full max-w-3xl max-h-[88vh] flex flex-col overflow-hidden">
 
         {/* ── Header ── */}
@@ -366,13 +376,14 @@ export default function SignalDetailModal({ signal, onClose, onOpenChat }: Signa
 
       {/* Toast */}
       {showToast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[110]">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[210]">
           <div className="bg-[var(--th-bg-card)] border border-[var(--th-border)] rounded-lg px-5 py-2.5 shadow-2xl flex items-center gap-3">
             <span className="w-1 h-6 bg-blue-500 rounded-full shrink-0" />
             <p className="text-sm text-[var(--th-text)]">{toastMessage}</p>
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }

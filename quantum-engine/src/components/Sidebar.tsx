@@ -1,10 +1,10 @@
 import { NavLink } from 'react-router-dom';
-import { Zap, Target, Map, Star, FileText, Users, Home, Layers } from 'lucide-react';
+import { Zap, Building2, Map, Star, FileText, Users, Home, Layers } from 'lucide-react';
 
 const mainNav = [
   { to: '/home', icon: Home, label: '主页' },
   { to: '/signals', icon: Zap, label: '信号流' },
-  { to: '/candidates', icon: Target, label: '候选标的' },
+  { to: '/candidates', icon: Building2, label: '公司库' },
   { to: '/researchers', icon: Users, label: '人才库' },
   { to: '/knowledge-map', icon: Map, label: '知识地图' },
 ];

@@ -257,9 +257,8 @@ export function adaptApiItemToResearcher(item: PeopleApiItem): Researcher {
     '';
 
   const biography = item.introduction || '';
-  const researchTags = item.research_areas.length > 0
-    ? item.research_areas
-    : extractResearchTags(undefined, biography);
+  // 只使用 API 直接返回的 research_areas，不从简介文本自动推断
+  const researchTags = item.research_areas;
 
   return {
     id: String(item.id),

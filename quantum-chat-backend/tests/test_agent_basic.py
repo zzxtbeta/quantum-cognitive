@@ -18,11 +18,12 @@ def _mock_llm():
 
 
 def test_agent_tools_registered():
-    """验证 TOOLS 列表非空且每个元素可调用。"""
+    """验证 TOOLS 列表非空且每个元素是有效工具（Python 函数或 LangChain BaseTool）。"""
     from agent.tools import TOOLS
     assert len(TOOLS) > 0
     for tool in TOOLS:
-        assert callable(tool), f"Tool {tool} is not callable"
+        # 普通 Python 函数（callable），或 LangChain BaseTool（有 invoke 方法）
+        assert callable(tool) or hasattr(tool, "invoke"), f"Tool {tool} is not a valid tool"
 
 
 def test_system_prompt_not_empty():
@@ -33,23 +34,35 @@ def test_system_prompt_not_empty():
 
 
 def test_get_agent_returns_compiled_graph():
-    """验证 get_agent() 能返回合法的 CompiledStateGraph 对象。"""
-    with patch("agent.graph._build_llm", return_value=_mock_llm()):
-        # 每次测试用独立实例，绕过 lru_cache
-        from agent.graph import _build_llm, get_agent, SYSTEM_PROMPT, TOOLS
-        from deepagents import create_deep_agent
-        from langgraph.checkpoint.memory import MemorySaver
+    """验证 create_deep_agent 返回合法的 CompiledStateGraph（有 ainvoke / astream_events）。"""
+    from agent.graph import SYSTEM_PROMPT, TOOLS
+    from deepagents import create_deep_agent
+    from langgraph.checkpoint.memory import MemorySaver
+    from langchain_core.language_models import BaseChatModel
+    from langchain_core.outputs import ChatResult, ChatGeneration
 
-        agent = create_deep_agent(
-            model=_mock_llm(),
-            tools=TOOLS,
-            system_prompt=SYSTEM_PROMPT,
-            checkpointer=MemorySaver(),
-        )
+    # deepagents 在内部做 isinstance(model, BaseChatModel) 校验，
+    # 必须使用真正继承 BaseChatModel 的测试桩而非 MagicMock。
+    class _FakeLLM(BaseChatModel):
+        @property
+        def _llm_type(self) -> str:
+            return "fake"
 
-        # CompiledStateGraph 有 invoke / ainvoke / astream_events
-        assert hasattr(agent, "ainvoke")
-        assert hasattr(agent, "astream_events")
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content="mock"))])
+
+        def bind_tools(self, tools, **kwargs):
+            return self
+
+    agent = create_deep_agent(
+        model=_FakeLLM(),
+        tools=TOOLS,
+        system_prompt=SYSTEM_PROMPT,
+        checkpointer=MemorySaver(),
+    )
+
+    assert hasattr(agent, "ainvoke")
+    assert hasattr(agent, "astream_events")
 
 
 def test_search_tool_returns_string():

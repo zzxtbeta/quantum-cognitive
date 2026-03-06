@@ -1,11 +1,13 @@
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import {
   Zap, Target, Users, Map, Star, FileText,
   Activity, Clock, ArrowRight,
   Flame, Newspaper, BarChart2,
 } from 'lucide-react';
-import { mockSignals } from '../data/mockData';
 import { useAppContext } from '../contexts/AppContext';
+import { signalApi } from '../api/signals';
+import type { Signal } from '../types';
 
 const PRIORITY_COLOR: Record<string, string> = {
   high: 'bg-red-500',
@@ -99,14 +101,20 @@ function StatCard({
 export default function Home() {
   const navigate = useNavigate();
   const { focusItems, notes } = useAppContext();
+  const [recentSignals, setRecentSignals] = useState<Signal[]>([]);
+  const [totalSignals, setTotalSignals] = useState(0);
+
+  useEffect(() => {
+    signalApi.getSignals({ type: '全部', page: 1, pageSize: 4 }).then(res => {
+      setRecentSignals(res.signals.slice(0, 4));
+      setTotalSignals(res.total);
+    }).catch(() => {});
+  }, []);
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-CN', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
   });
-
-  const recentSignals = mockSignals.slice(0, 4);
-  const highCount = mockSignals.filter((s) => s.priority === 'high').length;
 
   return (
     <div className="animate-fade-up space-y-8">
@@ -120,7 +128,7 @@ export default function Home() {
             QUANTUM RADAR
           </h1>
           <p className="text-[#8892aa] text-sm mt-1.5">
-            量子科技赛道实时认知引擎 · <span className="text-blue-400 font-medium">{highCount} 条高优先信号</span>待处理
+            量子科技赛道实时认知引擎 · <span className="text-blue-400 font-medium">{totalSignals.toLocaleString()} 条信号</span>实时追踪中
           </p>
         </div>
         <div className="flex items-center gap-2 text-[10px] text-[#8892aa]">
@@ -131,7 +139,7 @@ export default function Home() {
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Zap} value={mockSignals.length} label="信号总数" sub="本周新增 2 条" color="text-amber-400" />
+        <StatCard icon={Zap} value={totalSignals || '—'} label="信号总数" sub="论文 + 新闻实时同步" color="text-amber-400" />
         <StatCard icon={Target} value={3} label="候选标的" sub="AI 推荐跟踪中" color="text-blue-400" />
         <StatCard icon={Star} value={focusItems.length} label="我的关注" sub="有 1 项近期更新" color="text-violet-400" />
         <StatCard icon={FileText} value={notes.length} label="研究笔记" sub="最近编辑 1 天前" color="text-emerald-400" />

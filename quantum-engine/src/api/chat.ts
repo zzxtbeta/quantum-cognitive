@@ -8,6 +8,12 @@ export interface StreamCallbacks {
   onToken: (token: string) => void;
   onDone: () => void;
   onError: (err: string) => void;
+  /** DeepAgent 模式：子Agent 输出 token */
+  onSubagentToken?: (agent: string, content: string) => void;
+  /** DeepAgent 模式：子Agent 启动（显示正在调用哪个 Agent） */
+  onAgentStart?: (agent: string, content: string) => void;
+  /** DeepAgent 模式：工具调用进度 */
+  onStep?: (tool: string, content: string) => void;
 }
 
 /**
@@ -20,14 +26,49 @@ export function streamChat(
   callbacks: StreamCallbacks,
   systemPrompt?: string,
 ): AbortController {
+  return _fetchSSE(
+    `${CHAT_BASE}/chat/stream`,
+    { message, thread_id: threadId, system_prompt: systemPrompt },
+    callbacks,
+  );
+}
+
+/**
+ * 向 DeepAgent 后端发送深度研究请求（多子Agent 模式）。
+ * endpoint: POST /deep/stream
+ */
+export function streamDeepResearch(
+  message: string,
+  threadId: string,
+  callbacks: StreamCallbacks,
+): AbortController {
+  return _fetchSSE(
+    `${CHAT_BASE}/deep/stream`,
+    { message, thread_id: threadId },
+    callbacks,
+  );
+}
+
+/** 清空 DeepAgent 会话 */
+export async function clearDeepThread(threadId: string) {
+  const res = await fetch(`${CHAT_BASE}/deep/thread/${threadId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function _fetchSSE(
+  url: string,
+  body: object,
+  callbacks: StreamCallbacks,
+): AbortController {
   const controller = new AbortController();
 
   (async () => {
     try {
-      const res = await fetch(`${CHAT_BASE}/chat/stream`, {
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, thread_id: threadId, system_prompt: systemPrompt }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -42,7 +83,6 @@ export function streamChat(
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
 
-        // SSE lines: "data: {...}\n\n"
         const lines = buffer.split('\n\n');
         buffer = lines.pop() ?? '';
 
@@ -52,9 +92,13 @@ export function streamChat(
           try {
             const parsed = JSON.parse(trimmed);
             if (parsed.type === 'token') callbacks.onToken(parsed.content);
+            else if (parsed.type === 'subagent_token') callbacks.onSubagentToken?.(parsed.agent, parsed.content);
+            else if (parsed.type === 'agent_start') callbacks.onAgentStart?.(parsed.agent, parsed.content);
+            else if (parsed.type === 'step') callbacks.onStep?.(parsed.tool, parsed.content);
+            else if (parsed.type === 'step_done') { /* handled by onStep clearing */ }
             else if (parsed.type === 'done') callbacks.onDone();
             else if (parsed.type === 'error') callbacks.onError(parsed.content);
-          } catch { /* ignore non-JSON lines */ }
+          } catch { /* ignore non-JSON */ }
         }
       }
       callbacks.onDone();
@@ -66,9 +110,16 @@ export function streamChat(
   return controller;
 }
 
-/** 获取某个线程的历史消息 */
+/** 获取普通对话线程的历史消息 */
 export async function getChatHistory(threadId: string) {
   const res = await fetch(`${CHAT_BASE}/chat/history/${threadId}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<{ thread_id: string; messages: { role: string; content: string }[] }>;
+}
+
+/** 获取 DeepAgent 线程的历史消息 */
+export async function getDeepHistory(threadId: string) {
+  const res = await fetch(`${CHAT_BASE}/deep/history/${threadId}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json() as Promise<{ thread_id: string; messages: { role: string; content: string }[] }>;
 }
@@ -79,3 +130,4 @@ export async function clearChatThread(threadId: string) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+

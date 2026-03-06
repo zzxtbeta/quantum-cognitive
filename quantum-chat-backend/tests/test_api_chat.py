@@ -15,6 +15,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 def _make_mock_agent(reply: str = "这是模拟回复"):
     """构造一个模拟 deepagent CompiledStateGraph。"""
+    from langchain_core.messages import AIMessageChunk
     agent = MagicMock()
 
     # ainvoke: 返回带 messages 的状态字典
@@ -22,7 +23,14 @@ def _make_mock_agent(reply: str = "这是模拟回复"):
         return_value={"messages": [HumanMessage(content="test"), AIMessage(content=reply)]}
     )
 
-    # astream_events: 产生 on_chat_model_stream 事件
+    # astream: 产生 (AIMessageChunk, metadata) 元组（LangGraph stream_mode="messages"）
+    async def _fake_astream(input_payload, config, stream_mode="messages"):
+        chunk = AIMessageChunk(content=reply)
+        yield (chunk, {"tags": [], "name": "ChatOpenAI"})
+
+    agent.astream = _fake_astream
+
+    # astream_events: 备用（如有其他测试使用）
     async def _fake_stream_events(input_payload, config, version):
         chunk = MagicMock()
         chunk.content = reply

@@ -69,12 +69,17 @@ export default function ResearcherCard({ researcher, onClick }: ResearcherCardPr
         </div>
       )}
 
-      {/* Research Tags */}
-      {researcher.researchTags.length > 0 && (
+      {/* Research Tags — 仅显示 API 直接返回的标签；无标签时显示邮箱地址 */}
+      {researcher.researchTags.length > 0 ? (
         <div className="mb-3">
           <ResearchTagCloud tags={researcher.researchTags} maxTags={4} />
         </div>
-      )}
+      ) : researcher.email ? (
+        <div className="flex items-center gap-1.5 text-xs text-blue-400/70 mb-3">
+          <Mail className="w-3 h-3 flex-shrink-0" />
+          <span className="truncate">{researcher.email}</span>
+        </div>
+      ) : null}
 
       {/* Spacer to push footer down */}
       <div className="flex-1" />

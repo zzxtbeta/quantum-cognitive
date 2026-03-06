@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     # ── Tavily web search ────────────────────────────────────────────
     tavily_api_key: str = ""
 
+    # ── 量子引擎数据 API（供 DeepAgent 工具层使用）────────────────────────
+    quantum_api_base_url: str = "http://47.110.226.140:8080"
+    quantum_api_key: str = "xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK"
+
     # ── Server ───────────────────────────────────────────────────────
     host: str = "0.0.0.0"
     port: int = 8001

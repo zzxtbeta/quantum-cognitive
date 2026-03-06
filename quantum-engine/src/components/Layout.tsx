@@ -30,7 +30,8 @@ export default function Layout() {
       if (!isResizing) return;
       
       const newWidth = window.innerWidth - e.clientX;
-      if (newWidth >= 300 && newWidth <= 800) {
+      const maxWidth = Math.floor(window.innerWidth * 0.72);
+      if (newWidth >= 280 && newWidth <= maxWidth) {
         setChatWidth(newWidth);
       }
     };
@@ -90,11 +91,11 @@ export default function Layout() {
           {!isSidebarCollapsed && <Sidebar />}
         </div>
 
-        {/* Sidebar Toggle Button */}
+        {/* Sidebar Toggle Button — z-[62] 确保在 Sidebar(backdrop-blur stacking ctx) 和 Navbar(z-50) 之上 */}
         <button
           onClick={toggleSidebar}
-          className="fixed top-1/2 -translate-y-1/2 z-50 group transition-all duration-300"
-          style={{ left: isSidebarCollapsed ? '0' : '226px' }}
+          className="fixed top-1/2 -translate-y-1/2 z-[62] group transition-all duration-300"
+          style={{ left: isSidebarCollapsed ? '4px' : '228px' }}
         >
           <div className="relative">
             <div className="absolute inset-0 bg-blue-500/20 blur-lg opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
@@ -121,8 +122,12 @@ export default function Layout() {
 
         {/* Main Content */}
         <main
-          className="flex-shrink-0 px-5 pb-10 pt-6 transition-all duration-300 relative z-10"
-          style={{ width: mainWidth }}
+          className="flex-shrink-0 pb-10 pt-6 transition-all duration-300 relative z-10"
+          style={{
+            width: mainWidth,
+            paddingLeft: isSidebarCollapsed ? '28px' : '20px',
+            paddingRight: '20px',
+          }}
         >
           <Outlet />
         </main>

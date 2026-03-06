@@ -23,19 +23,13 @@ export function adaptPaperToSignal(paper: BackendPaper): Signal {
     technologies: paper.domain_ids.length,
   };
 
-  // 根据影响力分数或发表时间判断优先级
+  // 根据发表时间判断优先级
   let priority: 'high' | 'mid' | 'low' = 'mid';
-  if (paper.influence_score) {
-    if (paper.influence_score >= 80) priority = 'high';
-    else if (paper.influence_score < 60) priority = 'low';
-  } else {
-    // 如果没有影响力分数，根据发表时间判断（最近的优先级高）
-    const publishDate = new Date(paper.publish_date);
-    const now = new Date();
-    const daysDiff = (now.getTime() - publishDate.getTime()) / (1000 * 60 * 60 * 24);
-    if (daysDiff < 90) priority = 'high';
-    else if (daysDiff > 365) priority = 'low';
-  }
+  const publishDate = new Date(paper.publish_date);
+  const now = new Date();
+  const daysDiff = (now.getTime() - publishDate.getTime()) / (1000 * 60 * 60 * 24);
+  if (daysDiff < 90) priority = 'high';
+  else if (daysDiff > 365) priority = 'low';
 
   return {
     id: `paper-${paper.id}`,
@@ -85,7 +79,6 @@ export function adaptPaperToSignalDetail(paper: BackendPaper): SignalDetail {
       key_contributions: paper.key_contributions,
       metrics: paper.metrics,
       domain_ids: paper.domain_ids,
-      influence_score: paper.influence_score,
     },
   };
 }

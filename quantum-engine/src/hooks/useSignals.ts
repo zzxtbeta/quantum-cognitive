@@ -4,6 +4,7 @@ import { Signal, SignalFilters } from '../types';
 
 export const useSignals = (initialFilters?: SignalFilters) => {
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [filters, setFilters] = useState<SignalFilters>(initialFilters || {});
@@ -14,6 +15,7 @@ export const useSignals = (initialFilters?: SignalFilters) => {
     try {
       const response = await signalApi.getSignals(filters);
       setSignals(response.signals);
+      setTotal(response.total);
     } catch (err) {
       setError(err as Error);
       console.error('Failed to fetch signals:', err);
@@ -36,6 +38,7 @@ export const useSignals = (initialFilters?: SignalFilters) => {
 
   return {
     signals,
+    total,
     loading,
     error,
     filters,

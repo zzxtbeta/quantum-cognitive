@@ -1,8 +1,8 @@
 // 信号相关类型定义
 
 // 论文作为独立信号类型
-// 新闻信号包含五大类型：政策规划、融资事件、产业化进展、技术发布、人才组织
-export type SignalType = '论文' | '政策规划' | '融资事件' | '产业化进展' | '技术发布' | '人才组织';
+// 新闻信号包含六大类型：政策规划、融资事件、产业化进展、技术发布、人才组织、新闻资讯
+export type SignalType = '论文' | '政策规划' | '融资事件' | '产业化进展' | '技术发布' | '人才组织' | '新闻资讯';
 export type SignalPriority = 'high' | 'mid' | 'low';
 
 export interface Signal {
@@ -32,6 +32,7 @@ export interface SignalFilters {
   type?: SignalType | '全部';
   priority?: SignalPriority | 'all';
   timeRange?: '7' | '30' | '90' | 'all';
+  keyword?: string;
   page?: number;
   pageSize?: number;
 }

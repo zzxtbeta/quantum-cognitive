@@ -16,8 +16,8 @@ except ImportError:
     from langchain_community.tools.tavily_search import TavilySearchResults as _TavilySearch  # type: ignore
     _TAVILY_CLS = _TavilySearch
 
-# skills 目录：agent/skills/（与本文件同级）
-_SKILLS_DIR = Path(__file__).parent / "skills"
+# skills 目录：quantum-chat-backend/skills/（顶级目录，与 agent/ 同级）
+_SKILLS_DIR = Path(__file__).parent.parent / "skills"
 
 
 def _make_tavily_tool():
@@ -197,10 +197,43 @@ def get_skill(name: str) -> str:
     return f"# Skill: {name}\n\n{body}"
 
 
+def get_skill_file(skill_name: str, file_path: str) -> str:
+    """
+    读取 Skill 目录内的引用文件（渐进式加载，Level 3）。
+
+    当 SKILL.md 正文中引用了 references/api.md 等附属文件时，调用此工具获取其内容。
+    路径相对于该 Skill 目录根，例如 'references/api.md'。
+
+    Args:
+        skill_name: Skill 名称（目录名），例如 'paper-research'
+        file_path:  相对路径，例如 'references/api.md'
+    """
+    if not _SKILLS_DIR.exists():
+        return f"ERROR: skills/ 目录不存在。"
+
+    # 安全校验：限制在 skills 目录内，防止路径穿越
+    target = (_SKILLS_DIR / skill_name / file_path).resolve()
+    allowed_root = (_SKILLS_DIR / skill_name).resolve()
+    if not str(target).startswith(str(allowed_root)):
+        return "ERROR: 非法路径。"
+
+    if not target.exists():
+        available = [
+            str(f.relative_to(_SKILLS_DIR / skill_name))
+            for f in (_SKILLS_DIR / skill_name).rglob("*.md")
+            if f.name != "SKILL.md"
+        ] if (_SKILLS_DIR / skill_name).exists() else []
+        hint = f"可用文件：{', '.join(available)}" if available else "该 Skill 目录下无其他文件。"
+        return f"ERROR: '{file_path}' 不存在于 Skill '{skill_name}' 中。{hint}"
+
+    return target.read_text(encoding="utf-8")
+
+
 # 注册到 deepagents 的工具列表
 TOOLS = [
     save_skill,
     list_skills,
     get_skill,
+    get_skill_file,
     _make_tavily_tool(),   # Tavily 网络搜索（实时信息）
 ]

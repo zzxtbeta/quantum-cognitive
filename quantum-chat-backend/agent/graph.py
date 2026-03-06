@@ -14,7 +14,7 @@ deepagents 图构建与单例管理。
 from __future__ import annotations
 
 import logging
-import re
+import yaml
 from pathlib import Path
 
 from deepagents import create_deep_agent
@@ -27,8 +27,8 @@ from .tools import TOOLS
 
 logger = logging.getLogger(__name__)
 
-# skills 存放目录
-_SKILLS_DIR = Path(__file__).parent / "skills"
+# skills 统一存放目录（项目根 skills/，按 scope 筛选 chat-agent 类）
+_SKILLS_DIR = Path(__file__).parent.parent / "skills"
 
 # ─── 全局单例 ──────────────────────────────────────────────────────────────────
 _agent = None
@@ -69,8 +69,18 @@ def _load_skills_into_prompt(base_prompt: str) -> str:
         if not skill_file.exists():
             continue
         content = skill_file.read_text(encoding="utf-8")
-        desc_match = re.search(r'^description:\s*(.+)$', content, re.MULTILINE)
-        desc = desc_match.group(1).strip() if desc_match else "（无描述）"
+        # 使用 YAML 解析 frontmatter，只加载 scope=chat-agent 的 skills
+        parts = content.split("---", 2)
+        if len(parts) < 3:
+            continue
+        try:
+            fm = yaml.safe_load(parts[1]) or {}
+        except Exception:
+            continue
+        meta = fm.get("metadata") or {}
+        if meta.get("scope", "chat-agent") != "chat-agent":
+            continue
+        desc = fm.get("description", "（无描述）")
         skill_lines.append(f"- **{skill_dir.name}**: {desc}")
 
     if not skill_lines:
