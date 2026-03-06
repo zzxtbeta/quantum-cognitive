@@ -41,10 +41,43 @@ _你不是聊天机器人。你是个靠谱的助手。_
 | 工具 | 用途 |
 |------|------|
 | `list_skills` | 查看当前有哪些技能，以及每个技能的一句话说明 |
-| `get_skill(name)` | 获取某个技能的完整操作指南（先 list，再按需 get，别一次全加载） |
+| `get_skill(name)` | 获取某个技能的完整操作指南（先 list，再按需 get，别一次全加载）|
+| `get_skill_file(name, path)` | 读取技能的附属文件，如 `references/api.md`（大型文档单独存放）|
 | `save_skill(name, ...)` | 把当前对话中总结的方法永久保存为新技能 |
+| `save_skill_reference(name, path, content)` | 为已有技能添加附属文件（API文档、脚本、模板）|
 
 **用技能的正确姿势**：看到任务 → 想一下技能列表里有没有相关的 → 有的话 `get_skill` 拿来用 → 没有且这次摸索出了好方法 → `save_skill` 存下来。
+
+**创建技能时的关键原则**（来自 Anthropic skill-creator 规范）：
+
+**1. description 是触发机制**：description 字段同时承担"是什么"和"何时用"两件事。
+要"积极主动"——列出用户可能说的各种表达，让技能在情境匹配时主动触发：
+```
+description: 分析量子论文技术成熟度和投资价值。当用户询问论文进展、TRL评估、
+技术路线对比、某领域最新成果、学术前沿时，主动使用此技能，即使用户没有明说"分析论文"。
+```
+
+**2. 三层渐进式加载（让技能保持轻量）**：
+- Level 1 — 始终在 prompt 中：name + description（~100词）
+- Level 2 — 触发时加载：SKILL.md 正文，保持 < 500 行
+- Level 3 — 按需加载：`references/` 目录中的大型文档，用 `get_skill_file` 读取
+
+**3. instructions 写法**：用祈使形式，解释每步的原因：
+```
+先调用 get_domain_tree() 获取领域列表，因为 domain_id 是后续所有查询的基础。
+再按发布日期降序扫描，优先覆盖近两年，而不是按相关性——相关性排序会漏掉最新成果。
+```
+
+**4. 技能目录结构**：
+```
+skill-name/
+├── SKILL.md              ← 核心文档（frontmatter + 指南）
+├── references/           ← 大型参考文档（API说明、字段表、数据字典）
+├── scripts/              ← 可复用脚本（数据处理、报告生成）
+└── assets/               ← 输出资产（报告模板、配置文件）
+```
+
+**5. scope 字段**：默认 `chat-agent`；需要专用数据接口的深度研究技能设为 `deep-research`。
 
 技能名格式：小写字母 + 连字符，例如 `quantum-research-workflow`、`funding-signal-eval`。
 

@@ -73,23 +73,41 @@ def save_skill(
     name: str,
     description: str,
     instructions: str,
-    when_to_use: str,
-    allowed_tools: Optional[str] = None,
+    scope: str = "chat-agent",
 ) -> str:
     """
     将当前总结出的分析方法或工作流封装为可复用的 Skill，持久化到本地 skills 目录。
     下次对话启动时该 Skill 将自动注入到 agent 的 system prompt 中。
 
+    **description 是触发机制（最重要）**：description 必须同时描述 Skill 的功能 AND
+    包含详细的适用场景。让描述"积极主动"——涵盖用户可能说的各种表达，不用等用户
+    明确点名技能，只要情境匹配就应触发。例如：
+    "分析量子论文技术成熟度。当用户询问论文进展、TRL评估、技术路线对比、
+    最新学术成果时，主动使用此技能，即使用户没有明说要'分析论文'。"
+
+    **instructions 写作原则**（Anthropic skill-creator 规范）：
+    - 使用祈使形式：先做X，再做Y
+    - 说明每步的原因（"...因为这样能覆盖所有子域"）
+    - 避免全大写强制语气；用解释替代命令
+    - 代码块包裹 API 调用示例
+    - 控制在 500 行以内；超长部分抽到 references/ 目录用 save_skill_reference 保存
+
+    **渐进式加载（三层）**：
+    - Level 1：description（始终在上下文中，约 100 词）
+    - Level 2：SKILL.md 正文（触发时加载，< 500 行）
+    - Level 3：references/ 目录（按需加载，调用 get_skill_file 读取）
+
     Args:
         name: Skill 唯一标识，格式：小写字母、数字、连字符，最长 64 字符
-              例如 'quantum-error-correction-analysis' 或 'funding-signal-eval'
-        description: 一句话描述该 Skill 的作用和适用场景（≤120 字）
-        instructions: 详细步骤说明（Markdown 格式，支持 ## 小节、列表、代码块）
-        when_to_use: 列举 3-5 条使用场景，每条用 "- " 开头
-        allowed_tools: 可选，该 Skill 建议使用的工具名，空格分隔
-                       例如 'search_quantum_knowledge get_researcher_profile'
+              例如 'quantum-error-correction-analysis'
+        description: Skill 的功能描述 + 适用场景（触发条件的主要依据）。
+                     应当具体、全面，涵盖用户可能使用的各种表达方式。≤ 300 字。
+                     注意：原来的 when_to_use 内容合并到这里。
+        instructions: 详细操作指南（Markdown），祈使式，含步骤、原因和代码示例。
+                      大型附属文档（API 字段说明等）另用 save_skill_reference 存入 references/。
+        scope: 'chat-agent'（默认）或 'deep-research'（需专用数据 API 的深度研究技能）
     """
-    # 1. 校验 name 格式（Agent Skills spec 规范）
+    # 1. 校验 name 格式
     if not name:
         return "ERROR: name 不能为空"
     if len(name) > 64:
@@ -99,23 +117,18 @@ def save_skill(
     if '--' in name:
         return "ERROR: name 不能包含连续连字符 '--'"
 
-    # 2. 构建 SKILL.md 内容
+    # 2. 构建 SKILL.md 内容（简洁 frontmatter：name + description，可选 scope）
     frontmatter_lines = [
         "---",
         f"name: {name}",
         f"description: {description}",
-        "license: internal",
-        f"compatibility: 量子认知助手 deepagent（生成于 {datetime.now().strftime('%Y-%m-%d')}）",
     ]
-    if allowed_tools:
-        frontmatter_lines.append(f"allowed_tools: {allowed_tools}")
+    if scope and scope != "chat-agent":
+        frontmatter_lines.append(f"scope: {scope}")
     frontmatter_lines.append("---")
 
     skill_content = "\n".join(frontmatter_lines) + "\n\n"
     skill_content += f"# {name}\n\n"
-    skill_content += "## When to Use\n"
-    skill_content += textwrap.dedent(when_to_use).strip() + "\n\n"
-    skill_content += "## Instructions\n"
     skill_content += textwrap.dedent(instructions).strip() + "\n"
 
     # 3. 写入文件
@@ -229,9 +242,66 @@ def get_skill_file(skill_name: str, file_path: str) -> str:
     return target.read_text(encoding="utf-8")
 
 
+def save_skill_reference(
+    skill_name: str,
+    file_path: str,
+    content: str,
+) -> str:
+    """
+    为已保存的 Skill 添加附属文件（Level 3 渐进式加载）。
+
+    大型文档（API 说明、字段索引、输出模板等）不应塞进 SKILL.md 正文，
+    而应单独存到 references/ 子目录，让 SKILL.md 保持简洁。
+    读取时在 SKILL.md 里注明：调用 get_skill_file(skill_name, 'references/xxx.md')。
+
+    目录约定：
+    - references/  — 参考文档：API 接口说明、字段速查表、数据字典等
+    - scripts/      — 可复用脚本：数据处理、报告生成等（.py / .sh）
+    - assets/       — 输出资产：报告模板、图标、配置文件等
+
+    Args:
+        skill_name: Skill 目录名，例如 'quantum-paper-analysis'
+        file_path:  相对于 skill 目录的路径，例如 'references/api.md' 或 'scripts/fetch.py'
+        content:    文件内容（Markdown 文档或代码）
+    """
+    if not _SKILLS_DIR.exists():
+        return "ERROR: skills/ 目录不存在，请先用 save_skill 创建 Skill。"
+
+    skill_dir = _SKILLS_DIR / skill_name
+    if not skill_dir.exists():
+        available = [d.name for d in sorted(_SKILLS_DIR.iterdir()) if d.is_dir()]
+        hint = f"可用技能：{', '.join(available)}" if available else "当前无已保存技能。"
+        return f"ERROR: Skill '{skill_name}' 不存在。{hint}"
+
+    # 安全校验：严格限制路径在 skill 目录内，防止路径穿越
+    target = (skill_dir / file_path).resolve()
+    allowed_root = skill_dir.resolve()
+    if not str(target).startswith(str(allowed_root) + os.sep) and str(target) != str(allowed_root):
+        return "ERROR: 非法路径，不允许访问 Skill 目录之外的位置。"
+
+    # 只允许 references/, scripts/, assets/ 子目录
+    rel = Path(file_path)
+    allowed_subdirs = {"references", "scripts", "assets"}
+    if rel.parts and rel.parts[0] not in allowed_subdirs:
+        return f"ERROR: 只允许写入 {', '.join(sorted(allowed_subdirs))} 子目录，收到：{rel.parts[0]}"
+
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    except OSError as e:
+        return f"ERROR: 写入文件失败 — {e}"
+
+    return (
+        f"✅ 引用文件已保存：{skill_name}/{file_path}\n"
+        f"📖 在 SKILL.md 中引用方式：\n"
+        f"   > 调用 `get_skill_file('{skill_name}', '{file_path}')` 获取完整内容。"
+    )
+
+
 # 注册到 deepagents 的工具列表
 TOOLS = [
     save_skill,
+    save_skill_reference,
     list_skills,
     get_skill,
     get_skill_file,

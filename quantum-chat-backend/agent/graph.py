@@ -78,7 +78,8 @@ def _load_skills_into_prompt(base_prompt: str) -> str:
         except Exception:
             continue
         meta = fm.get("metadata") or {}
-        scope = meta.get("scope", "chat-agent")
+        # 兼容新格式（顶层 scope）和旧格式（metadata.scope）
+        scope = fm.get("scope") or meta.get("scope", "chat-agent")
         desc = fm.get("description", "（无描述）")
         # deep-research 技能需要专用数据工具，附加提示
         scope_hint = "（需 Deep Research 模式获取完整数据）" if scope == "deep-research" else ""
