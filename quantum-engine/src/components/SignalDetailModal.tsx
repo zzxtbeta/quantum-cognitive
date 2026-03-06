@@ -59,15 +59,6 @@ function AbstractSection({ text }: { text: string }) {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex gap-3 text-sm">
-      <span className="text-[var(--th-text-muted)] w-20 shrink-0">{label}</span>
-      <span className="text-[var(--th-text)]">{value}</span>
-    </div>
-  );
-}
-
 function EntityCard({ icon, label, count, unit }: { icon: React.ReactNode; label: string; count: number; unit: string }) {
   return (
     <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[var(--th-bg-elevated)] border border-[var(--th-border-card)]">
@@ -97,12 +88,9 @@ export default function SignalDetailModal({ signal, onClose, onOpenChat }: Signa
     }).catch(() => {}); // 加载失败静默忽略（降级显示 ID）
   }, []);
   const [toastMessage, setToastMessage] = useState('');
-  const [activeTab, setActiveTab] = useState<SignalType | '全部'>('全部');
 
   const config = priorityConfig[signal.priority];
   const relatedSignals: typeof signal[] = [];
-  const filteredRelatedSignals =
-    activeTab === '全部' ? relatedSignals : relatedSignals.filter(s => s.type === activeTab);
 
   const showToastMessage = (msg: string) => {
     setToastMessage(msg);
