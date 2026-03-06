@@ -73,6 +73,12 @@ client = TavilyClient(api_key=TAVILY_API_KEY)
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
+| `id` | string | 新闻唯一标识 |
+| `title` | string | 新闻标题 |
+| `source` | string | 来源媒体名称 |
+| `published_at` | string | 发布时间（ISO 8601） |
+| `source_url` | string | 原文链接 |
+| `summary` | string\|null | 新闻正文摘要（AI 生成），是关键信息来源，优先读取 |
 | `tags` | array\|null | 新闻标签，如 `["融资", "量子计算"]` |
 | `mentioned_entities` | array | 新闻中提及的公司/机构/人物 |
 

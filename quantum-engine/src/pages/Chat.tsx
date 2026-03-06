@@ -251,7 +251,8 @@ function BackendStatus() {
 
 export default function Chat() {
   const [deepMode, setDeepMode] = useState<ChatMode>('chat');
-  const { messages, loading, error, threadId, activeSubagent, progressStep, savedThreads, sendMessage, clearMessages, switchThread } = useChat(deepMode);
+  const { messages, loading, error, threadId, activeSubagent, toolSteps, savedThreads, sendMessage, clearMessages, switchThread } = useChat(deepMode);
+  const [stepsExpanded, setStepsExpanded] = useState(false);
   const [input, setInput] = useState('');
   const [showSkills, setShowSkills] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -532,24 +533,44 @@ export default function Chat() {
             })}
 
             {/* DeepAgent 进度指示器 */}
-            {deepMode === 'deep' && loading && (activeSubagent || progressStep) && (
+            {deepMode === 'deep' && loading && activeSubagent && (
               <div className="flex flex-col gap-1.5 pl-8 animate-in fade-in duration-300">
-                {activeSubagent && (
-                  <span className="inline-flex items-center gap-1.5 text-[11px] text-violet-400 bg-violet-500/10 border border-violet-500/20 rounded-full px-2.5 py-1 w-fit">
-                    <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
-                    {SUBAGENT_LABELS[activeSubagent] ?? `${activeSubagent}`}
-                  </span>
-                )}
-                {progressStep && (
-                  <span className="inline-flex items-center gap-1.5 text-[10px] text-slate-400 bg-slate-800/60 border border-slate-700/40 rounded-md px-2 py-0.5 w-fit max-w-xs truncate">
-                    {progressStep}
-                  </span>
+                <span className="inline-flex items-center gap-1.5 text-[11px] text-violet-400 bg-violet-500/10 border border-violet-500/20 rounded-full px-2.5 py-1 w-fit">
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                  {SUBAGENT_LABELS[activeSubagent] ?? `${activeSubagent}`}
+                </span>
+              </div>
+            )}
+
+            {/* 工具调用历史（工具有记录时始终显示） */}
+            {deepMode === 'deep' && toolSteps.length > 0 && (
+              <div className="pl-8 animate-in fade-in duration-300">
+                <button
+                  onClick={() => setStepsExpanded(v => !v)}
+                  className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-300 bg-slate-800/60 border border-slate-700/40 rounded-md px-2.5 py-1 w-fit transition-colors"
+                >
+                  <span className="font-mono">🔧</span>
+                  {toolSteps.length} 个工具调用
+                  <span className="ml-0.5 opacity-60">{stepsExpanded ? '▲' : '▼'}</span>
+                </button>
+                {stepsExpanded && (
+                  <div className="mt-1.5 flex flex-col gap-1 border-l-2 border-slate-700/40 pl-3">
+                    {toolSteps.map(step => (
+                      <span
+                        key={step.id}
+                        className="text-[10px] text-slate-400 bg-slate-800/40 rounded px-2 py-0.5 w-fit max-w-sm truncate"
+                        title={step.content}
+                      >
+                        {step.content}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
 
             {/* 非流式 loading（无进度信息时） */}
-            {loading && !isLastAiStreaming && !activeSubagent && !progressStep && (
+            {loading && !isLastAiStreaming && !activeSubagent && toolSteps.length === 0 && (
               <div className="flex items-center gap-2 pl-8">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '150ms' }} />

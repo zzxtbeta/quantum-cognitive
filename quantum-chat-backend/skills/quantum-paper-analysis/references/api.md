@@ -154,4 +154,66 @@ GET {base_url}/papers?include_stats=true&page_size=50
 | `search_papers(query, domain_ids, time_range, ...)` | `GET {base_url}/papers`（单次调用） |
 | `batch_scan_papers(domain_ids, pages_to_scan, depth)` | 循环调用 `GET {base_url}/papers`（多页） |
 | `analyze_quantum_theme(theme, domain_ids)` | 先调用 `batch_scan_papers`，再做汇总分析 |
+| `semantic_search_papers(query, top_k)` | `POST {base_url}/papers/search`（向量语义检索） |
 | `save_research_artifact(...)` | 写入本地文件，不调用外部 HTTP API |
+
+---
+
+## 接口 3：向量语义检索
+
+### `POST {base_url}/papers/search`
+
+**用途**：基于句向量相似度检索，适用于自然语言描述的研究概念，支持中英文混合查询。
+当关键词检索（接口 2）结果 < 5 条，或用户描述的是概念而非精确词汇时，优先使用本接口。
+
+### 请求 Body
+
+```json
+{
+  "query": "玻色子量子准晶体中的低能激发态",
+  "top_k": 10
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `query` | string | 是 | 自然语言查询（中文/英文均可） |
+| `top_k` | int | 否 | 返回数量，默认 10，建议 5-20 |
+
+### 响应结构
+
+```json
+{
+  "data": [
+    {
+      "id": 3821,
+      "title": "Low-energy excitations in bosonic quantum quasicrystals",
+      "abstract": "We investigate the low-energy excitation spectrum...",
+      "authors": ["Zhang Wei", "Li Fang"],
+      "publish_date": "2024-11-08",
+      "domain_id": 12,
+      "citation_count": 14,
+      "score": 0.934
+    }
+  ]
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `score` | float (0-1) | 余弦相似度；>0.80 高度相关，>0.90 非常相关 |
+| 其余字段 | — | 与接口 2 `GET /papers` 返回字段一致 |
+
+### curl 示例
+
+```bash
+curl -X POST "{base_url}/papers/search" \
+  -H "X-API-Key: $QUANTUM_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "玻色子量子准晶体中的低能激发态", "top_k": 10}'
+```
+
+### 说明
+
+- 仅检索已生成 embedding 的论文（高质量 `gold.papers`）
+- 与关键词检索互补：关键词检索精确匹配，语义检索发现相关但措辞不同的论文

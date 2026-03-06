@@ -38,8 +38,9 @@ export const useChat = (mode: ChatMode = 'chat') => {
   const [savedThreads, setSavedThreads] = useState<ThreadMeta[]>(() => getStoredThreads());
   /** DeepAgent 模式：当前活跃子Agent 名称 */
   const [activeSubagent, setActiveSubagent] = useState<string | null>(null);
-  /** DeepAgent 模式：当前进度步骤描述（工具调用信息） */
-  const [progressStep, setProgressStep] = useState<string | null>(null);
+  /** 所有工具调用步骤（本轮对话累积，不清空，显示完整调用链） */
+  const [toolSteps, setToolSteps] = useState<{ id: number; tool: string; content: string }[]>([]);
+  const stepCounterRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(async (content: string) => {
@@ -69,31 +70,29 @@ export const useChat = (mode: ChatMode = 'chat') => {
     setLoading(true);
     setError(null);
     setActiveSubagent(null);
-    setProgressStep(null);
+    setToolSteps([]);
+    stepCounterRef.current = 0;
 
     const callbacks = {
       onToken: (token: string) => {
         setActiveSubagent(null);
-        setProgressStep(null);
         setMessages(prev =>
           prev.map(m => m.id === aiMsgId ? { ...m, content: m.content + token } : m)
         );
       },
       onSubagentToken: (agent: string, _content: string) => {
         setActiveSubagent(agent);
-        setProgressStep(null);
       },
-      onAgentStart: (agent: string, content: string) => {
+      onAgentStart: (agent: string, _content: string) => {
         setActiveSubagent(agent);
-        setProgressStep(content);
       },
-      onStep: (_tool: string, content: string) => {
-        setProgressStep(content);
+      onStep: (tool: string, content: string) => {
+        const id = stepCounterRef.current++;
+        setToolSteps(prev => [...prev, { id, tool, content }]);
       },
       onDone: () => {
         setLoading(false);
         setActiveSubagent(null);
-        setProgressStep(null);
         abortRef.current = null;
       },
       onError: (msg: string) => {
@@ -103,7 +102,6 @@ export const useChat = (mode: ChatMode = 'chat') => {
         );
         setLoading(false);
         setActiveSubagent(null);
-        setProgressStep(null);
         abortRef.current = null;
       },
     };
@@ -121,7 +119,7 @@ export const useChat = (mode: ChatMode = 'chat') => {
     setMessages([]);
     setError(null);
     setActiveSubagent(null);
-    setProgressStep(null);
+    setToolSteps([]);
     try {
       if (mode === 'deep') {
         await clearDeepThread(threadId);
@@ -152,7 +150,7 @@ export const useChat = (mode: ChatMode = 'chat') => {
     setMessages([]);
     setError(null);
     setActiveSubagent(null);
-    setProgressStep(null);
+    setToolSteps([]);
     setThreadId(meta.id);
     try {
       const data = meta.mode === 'deep'
@@ -176,7 +174,7 @@ export const useChat = (mode: ChatMode = 'chat') => {
     error,
     threadId,
     activeSubagent,
-    progressStep,
+    toolSteps,
     savedThreads,
     sendMessage,
     clearMessages,
