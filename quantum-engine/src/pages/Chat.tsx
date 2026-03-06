@@ -17,9 +17,9 @@ const DEEP_QUICK_QUESTIONS = [
   '量子纠错近期有哪些重要论文突破？人才格局怎样？',
 ];
 
-// 内联 Markdown 渲染（bold / italic / inline-code）
+// 内联 Markdown 渲染（bold / italic / inline-code / links）
 function InlineMarkdown({ text }: { text: string }) {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g);
   return (
     <>
       {parts.map((p, i) => {
@@ -35,6 +35,15 @@ function InlineMarkdown({ text }: { text: string }) {
         }
         if (p.startsWith('*') && p.endsWith('*') && p.length > 2 && !p.startsWith('**')) {
           return <em key={i} className="italic opacity-80">{p.slice(1, -1)}</em>;
+        }
+        const linkMatch = p.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+        if (linkMatch) {
+          return (
+            <a key={i} href={linkMatch[2]} target="_blank" rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline underline-offset-2 decoration-blue-400/40 hover:decoration-blue-300 transition-colors">
+              {linkMatch[1]}
+            </a>
+          );
         }
         return <span key={i}>{p}</span>;
       })}
