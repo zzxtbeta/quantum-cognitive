@@ -16,7 +16,6 @@ function adaptNewsItem(item: NewsItem | NewsSearchResult): Signal {
   const source = item.source || '未知来源';
   const dateStr = item.published_at || '';
   const priority: Signal['priority'] = 'mid';
-  const mentioned = (item as NewsItem).mentioned_entities;
   return {
     id,
     title,

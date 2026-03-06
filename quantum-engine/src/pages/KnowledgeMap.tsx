@@ -334,7 +334,7 @@ export default function KnowledgeMap() {
                                             ? `${paperCountCache[tech.id]} 篇论文`
                                             : currentNode?.id === tech.id && papersLoading
                                               ? '加载中…'
-                                              : tech.paperCount > 0
+                                              : (tech.paperCount ?? 0) > 0
                                                 ? `${tech.paperCount} 篇论文`
                                                 : '—'
                                           }
