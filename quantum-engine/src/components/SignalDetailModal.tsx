@@ -151,15 +151,35 @@ export default function SignalDetailModal({ signal, onClose, onOpenChat }: Signa
         <div className="sticky top-0 bg-[var(--th-bg-nav)] backdrop-blur-lg border-b border-[var(--th-divider)] px-6 py-4 flex items-start gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center flex-wrap gap-2 mb-2.5">
-              <span className="inline-flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${config.dot} shrink-0`} />
-                <span className={`text-xs font-medium ${config.text}`}>{config.label}</span>
-              </span>
+              {!signal.id.startsWith('news-') && (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${config.dot} shrink-0`} />
+                  <span className={`text-xs font-medium ${config.text}`}>{config.label}</span>
+                </span>
+              )}
               <span className="px-2 py-0.5 bg-[var(--th-bg-hover)] text-[var(--th-text)] text-xs rounded border border-[var(--th-border-card)]">
                 {signal.type}
               </span>
               <span className="text-[var(--th-text-muted)] text-xs">{signal.timestamp}</span>
-              {signal.source && <><span className="text-[var(--th-text-muted)] text-xs">·</span><span className="text-[var(--th-text-muted)] text-xs">{signal.source}</span></>}
+              {signal.source && (
+                <>
+                  <span className="text-[var(--th-text-muted)] text-xs">·</span>
+                  {(signal.metadata?.sourceUrl as string | undefined) ? (
+                    <a
+                      href={signal.metadata!.sourceUrl as string}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-[rgba(59,130,246,0.10)] border border-[rgba(59,130,246,0.25)] text-blue-300 text-xs font-medium rounded hover:bg-[rgba(59,130,246,0.18)] transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      {signal.source}
+                    </a>
+                  ) : (
+                    <span className="text-[var(--th-text-muted)] text-xs">{signal.source}</span>
+                  )}
+                </>
+              )}
             </div>
             <h2 className="text-xl font-semibold leading-snug text-[var(--th-text)] line-clamp-2">{signal.title}</h2>
           </div>
@@ -292,24 +312,10 @@ export default function SignalDetailModal({ signal, onClose, onOpenChat }: Signa
             );
           })()}
 
-          {/* Non-paper structured details */}
-          {signal.type !== '论文' && (
-            <Section label="事件详情">
-              <div className="space-y-1.5">
-                {signal.type === '融资事件' && <>
-                  <DetailRow label="公司" value="本源量子（合肥）" />
-                  <DetailRow label="技术路线" value="超导量子计算" />
-                  <DetailRow label="融资轮次" value="C轮" />
-                  <DetailRow label="金额" value="数亿元人民币" />
-                  <DetailRow label="投资方" value="深创投（领投）、建信股权、中金资本" />
-                </>}
-                {signal.type === '技术发布' && <>
-                  <DetailRow label="发布方" value="本源量子" />
-                  <DetailRow label="产品名称" value="本源司南" />
-                  <DetailRow label="产品类型" value="量子计算操作系统" />
-                  <DetailRow label="关键指标" value="容错阈值 2.1%" />
-                </>}
-              </div>
+          {/* 非论文类型展示摘要 */}
+          {signal.type !== '论文' && signal.summary && (
+            <Section label="事件摘要">
+              <p className="text-sm text-[var(--th-text)] leading-relaxed">{signal.summary}</p>
             </Section>
           )}
 
@@ -321,35 +327,6 @@ export default function SignalDetailModal({ signal, onClose, onOpenChat }: Signa
                 {signal.relatedEntities.companies > 0 && <EntityCard icon={<Building2 className="w-4 h-4 text-blue-400" />} label="公司" count={signal.relatedEntities.companies} unit="家" />}
                 {signal.relatedEntities.people > 0 && <EntityCard icon={<User className="w-4 h-4 text-blue-400" />} label="关键人物" count={signal.relatedEntities.people} unit="人" />}
                 {signal.relatedEntities.technologies > 0 && <EntityCard icon={<Lightbulb className="w-4 h-4 text-blue-400" />} label="相关技术" count={signal.relatedEntities.technologies} unit="条" />}
-              </div>
-            </div>
-          )}
-
-          {/* Related Signals */}
-          {signal.type !== '论文' && (
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-[var(--th-text-muted)] mb-2.5">相关信号</p>
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {(['全部', '论文', '政策规划', '融资事件', '产业化进展', '技术发布', '人才组织'] as const).map(tab => {
-                  const count = tab === '全部' ? relatedSignals.length : relatedSignals.filter(s => s.type === tab).length;
-                  return (
-                    <button key={tab} onClick={() => setActiveTab(tab)}
-                      className={`px-2.5 py-1 text-xs rounded transition-colors ${activeTab === tab ? 'bg-blue-600 text-white' : 'bg-[var(--th-bg-elevated)] text-[var(--th-text-muted)] hover:text-[var(--th-text)] border border-[var(--th-divider)]'}`}>
-                      {tab}{count > 0 && <span className="opacity-60 ml-1">({count})</span>}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                {filteredRelatedSignals.length > 0 ? filteredRelatedSignals.map(s => (
-                  <button key={s.id} className="w-full text-left flex items-start gap-3 px-3 py-2.5 rounded-lg bg-[var(--th-bg-elevated)] hover:bg-[var(--th-bg-hover)] border border-[var(--th-border-card)] transition-colors">
-                    <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${priorityConfig[s.priority].dot}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[var(--th-text)] line-clamp-1">{s.title}</p>
-                      <p className="text-xs text-[var(--th-text-muted)] mt-0.5">{s.type} · {s.timestamp}</p>
-                    </div>
-                  </button>
-                )) : <p className="text-center py-5 text-[var(--th-text-muted)] text-sm">暂无相关信号</p>}
               </div>
             </div>
           )}

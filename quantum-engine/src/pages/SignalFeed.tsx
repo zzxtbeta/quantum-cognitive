@@ -35,7 +35,7 @@ export default function SignalFeed() {
   useEffect(() => {
     const fetchTypeCounts = async () => {
       const newsResp = await Promise.allSettled([
-        newsApi.getNewsList({ page: 1, page_size: 1 }),
+        newsApi.getNewsList({ page: 1, page_size: 1, keyword: '量子', match_mode: 'any' }),
       ]);
       setTypeCounts({
         '新闻资讯': newsResp[0].status === 'fulfilled' ? newsResp[0].value.total : 0,

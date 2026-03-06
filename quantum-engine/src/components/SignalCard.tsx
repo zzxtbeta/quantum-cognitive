@@ -93,18 +93,33 @@ export default function SignalCard({ signal, onClick }: SignalCardProps) {
       <div className="p-5">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-bold rounded border ${config.badgeBg} ${config.textColor} ${config.borderColor}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${config.dotColor} ${signal.priority === 'high' ? 'dot-pulse' : ''}`} />
-              {config.label}
-            </span>
+            {!isNews && (
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-bold rounded border ${config.badgeBg} ${config.textColor} ${config.borderColor}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${config.dotColor} ${signal.priority === 'high' ? 'dot-pulse' : ''}`} />
+                {config.label}
+              </span>
+            )}
             <span className={`px-2.5 py-0.5 border text-[11px] font-semibold rounded ${typeBadgeClass}`}>
               {signal.type}
             </span>
-            {/* 来源标签 */}
+            {/* 数据来源 */}
             {signal.source && (
-              <span className="px-2 py-0.5 bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[#8892aa] text-[11px] rounded max-w-[140px] truncate">
-                {signal.source}
-              </span>
+              sourceUrl ? (
+                <a
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[rgba(59,130,246,0.10)] border border-[rgba(59,130,246,0.25)] text-blue-300 text-[11px] font-medium rounded hover:bg-[rgba(59,130,246,0.18)] hover:border-blue-400/40 transition-colors max-w-[150px] truncate"
+                >
+                  <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                  {signal.source}
+                </a>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[rgba(59,130,246,0.06)] border border-[rgba(59,130,246,0.15)] text-[#c8d4f0] text-[11px] font-medium rounded max-w-[150px] truncate">
+                  {signal.source}
+                </span>
+              )
             )}
             <span className="text-[#8892aa] text-xs whitespace-nowrap">{timeDisplay}</span>
           </div>

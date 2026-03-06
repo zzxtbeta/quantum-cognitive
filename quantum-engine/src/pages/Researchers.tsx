@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Filter, Mail, FileText, X, Users, Briefcase, FlaskConical } from 'lucide-react';
+import { Search, Filter, Mail, FileText, X, Users, FlaskConical } from 'lucide-react';
 import { useResearchers } from '../hooks/useResearchers';
 import { Researcher, Institution, INSTITUTION_CONFIG } from '../types/people';
 import ResearcherCard from '../components/researcher/ResearcherCard';
@@ -7,12 +7,10 @@ import ResearcherDetailModal from '../components/researcher/ResearcherDetailModa
 import InstitutionBadge from '../components/researcher/InstitutionBadge';
 
 const institutions: Institution[] = ['ustc', 'baqis', 'qscgba', 'zju', 'tsinghua'];
-const POSITION_PRESETS = ['教授', '副教授', '研究员', '博士后', '博士生'];
 
 export default function Researchers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInstitutions, setSelectedInstitutions] = useState<Institution[]>([]);
-  const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [researchAreaQuery, setResearchAreaQuery] = useState('');
   const [hasEmail, setHasEmail] = useState(false);
   const [hasBiography, setHasBiography] = useState(false);
@@ -24,7 +22,7 @@ export default function Researchers() {
   // 当筛选条件变化时重置页码
   useEffect(() => {
     setPage(1);
-  }, [selectedInstitutions, selectedPositions, researchAreaQuery, searchQuery, hasEmail, hasBiography]);
+  }, [selectedInstitutions, researchAreaQuery, searchQuery, hasEmail, hasBiography]);
 
   const filters = useMemo(() => ({
     name: searchQuery || undefined,
@@ -42,13 +40,9 @@ export default function Researchers() {
     return researchers.filter(r => {
       if (hasEmail && !r.email) return false;
       if (hasBiography && (!r.biography || r.biography.length < 10)) return false;
-      if (selectedPositions.length > 0) {
-        const rawTitle = (r.title || '').toLowerCase();
-        if (!selectedPositions.some(p => rawTitle.includes(p.toLowerCase()))) return false;
-      }
       return true;
     });
-  }, [researchers, hasEmail, hasBiography, selectedPositions]);
+  }, [researchers, hasEmail, hasBiography]);
 
   const toggleInstitution = (inst: Institution) => {
     setSelectedInstitutions(prev =>
@@ -56,15 +50,8 @@ export default function Researchers() {
     );
   };
 
-  const togglePosition = (pos: string) => {
-    setSelectedPositions(prev =>
-      prev.includes(pos) ? prev.filter(p => p !== pos) : [...prev, pos]
-    );
-  };
-
   const clearFilters = () => {
     setSelectedInstitutions([]);
-    setSelectedPositions([]);
     setResearchAreaQuery('');
     setHasEmail(false);
     setHasBiography(false);
@@ -73,7 +60,6 @@ export default function Researchers() {
 
   const hasActiveFilters =
     selectedInstitutions.length > 0 ||
-    selectedPositions.length > 0 ||
     researchAreaQuery ||
     hasEmail ||
     hasBiography ||
@@ -142,29 +128,6 @@ export default function Researchers() {
           </div>
         </div>
 
-        {/* Position Presets */}
-        <div>
-          <div className="text-[10px] text-[#8892aa] mb-2 flex items-center gap-1 uppercase tracking-widest">
-            <Briefcase className="w-3 h-3" />
-            职位筛选
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {POSITION_PRESETS.map(pos => (
-              <button
-                key={pos}
-                onClick={() => togglePosition(pos)}
-                className={`btn-glow px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  selectedPositions.includes(pos)
-                    ? 'bg-blue-600 text-white border border-blue-500 shadow-glow-sm'
-                    : 'bg-[rgba(59,130,246,0.06)] border border-[rgba(59,130,246,0.15)] text-[#8892aa] hover:text-[#c8d4f0] hover:border-blue-500/30'
-                }`}
-              >
-                {pos}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Research Area Input */}
         <div>
           <div className="text-[10px] text-[#8892aa] mb-2 flex items-center gap-1 uppercase tracking-widest">
@@ -227,14 +190,6 @@ export default function Researchers() {
             <span key={inst} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[rgba(59,130,246,0.08)] text-[#c8d4f0] text-xs rounded-full border border-[rgba(59,130,246,0.15)]">
               {INSTITUTION_CONFIG[inst].shortName}
               <button onClick={() => toggleInstitution(inst)} className="hover:text-white ml-0.5">
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          ))}
-          {selectedPositions.map(pos => (
-            <span key={pos} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[rgba(59,130,246,0.08)] text-[#c8d4f0] text-xs rounded-full border border-[rgba(59,130,246,0.15)]">
-              职位: {pos}
-              <button onClick={() => togglePosition(pos)} className="hover:text-white ml-0.5">
                 <X className="w-3 h-3" />
               </button>
             </span>
