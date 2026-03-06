@@ -1,17 +1,7 @@
 ---
 name: quantum-paper-analysis
-version: 1.0.0
-description: 分析量子技术论文、顶刊研究前沿、技术成熟度（TRL）、关键突破识别。当用户问到量子论文进展、某技术路线的最新成果、TRL评估、论文数据库时使用。
-license: MIT
-metadata:
-  scope: deep-research
-  openclaw:
-    requires:
-      env:
-        - QUANTUM_API_KEY
-        - QUANTUM_API_BASE_URL
-    primaryEnv: QUANTUM_API_KEY
-    emoji: "📄"
+description: 深度分析量子技术论文，提炼投资级技术洞察：技术路线竞争格局、TRL成熟度评估、关键突破识别、顶刊前沿进展。当用户询问量子论文进展、某技术方向最新成果、TRL评估、某科学家或机构的研究产出、某领域技术前沿现状时主动使用——包括"帮我看看超导量子最近有什么进展"、"量子纠错路线现在到哪一步了"、"最近有没有做XX方向的重要论文"等表述。
+scope: deep-research
 ---
 
 # paper-research — 量子论文深度分析技能

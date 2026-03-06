@@ -1,17 +1,7 @@
 ---
 name: quantum-people-intel
-version: 1.0.0
-description: 分析量子领域人才格局、辨识关键科学家和核心研究团队、了解机构实力、追踪人才图谱。当用户问到量子赛道人才、某科学家背景、机构实力对比、创业团队尽调时使用。
-license: MIT
-metadata:
-  scope: deep-research
-  openclaw:
-    requires:
-      env:
-        - QUANTUM_API_KEY
-        - QUANTUM_API_BASE_URL
-    primaryEnv: QUANTUM_API_KEY
-    emoji: "👥"
+description: 分析量子领域人才格局：关键科学家背景、机构研究实力对比、产业化信号识别、人才图谱梳理。当用户询问量子科学家背景、某机构团队实力、研究方向代表人物、创业团队尽调、某方向有没有值得追踪的人才时主动使用——包括"潘建伟团队在做什么"、"中科大量子计算有哪些PI"、"超导方向国内谁最厉害"、"XX公司创始人背景怎么样"等表述。
+scope: deep-research
 ---
 
 # 人才情报技能

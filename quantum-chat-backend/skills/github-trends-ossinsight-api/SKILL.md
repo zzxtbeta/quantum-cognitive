@@ -1,22 +1,12 @@
 ---
-name: tracking-github-trends
-description: 当需要查询 GitHub 热门/趋势项目、分析量子计算开源生态成熟度、发现高增长早期开源项目时使用。通过 OSS Insight 公开 API（无需认证）获取数据。
-license: MIT
+name: github-trends-ossinsight-api
+description: 通过 OSS Insight API 查询 GitHub 热门趋势项目，分析开源生态成熟度和技术赛道信号。当用户询问 GitHub 热门项目、某技术领域的开源生态活跃度、高增长开源项目发现、量子计算开源工具对比、某方向有没有代表性开源库时主动使用——API 无需认证，可直接查询。
 ---
 
 # github-trends-ossinsight-api — GitHub趋势项目分析技能
 
 ## 使命
 通过 OSS Insight API 获取 GitHub 热门趋势项目数据，分析开源生态成熟度和技术赛道信号。
-
----
-
-## 适用场景
-- 用户需要查询 GitHub 热门/趋势项目时
-- 需要分析某技术赛道的开源生态成熟度
-- 需要发现早期高增长潜力的开源项目
-- 需要对比多个同类项目的社区热度
-- 需要追踪某技术领域的最新动向
 
 ---
 

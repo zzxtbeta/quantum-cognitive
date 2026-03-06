@@ -1,12 +1,6 @@
 ---
 name: quantum-signal-synthesis
-version: 1.0.0
-description: 快速解读量子论文/融资信号、评估技术成熟度、分析技术赛道近期进展。当用户粘贴论文摘要、提及融资事件、询问某技术信号的投资含义时使用。轻量分析，不需全量数据调研。
-license: MIT
-metadata:
-  scope: deep-research
-  openclaw:
-    emoji: "⚡"
+description: 快速解读单条量子信号（论文摘要、融资事件、技术发布、政策文件），评估TRL成熟度并给出投资含义，通常2分钟内出结构化判断。当用户粘贴论文摘要、告知某融资消息、问"这个技术有没有投资价值"或"这篇论文说明了什么"时主动使用——不调量子数据库，直接基于用户提供的内容分析。需要全赛道系统研判时升级到 quantum-investment-analysis。
 ---
 
 # quantum-signal-synthesis —— 量子科技信号分析工作流
