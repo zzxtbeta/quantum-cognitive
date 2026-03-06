@@ -50,8 +50,12 @@ export default function SignalCard({ signal, onClick }: SignalCardProps) {
   const config = priorityConfig[signal.priority];
   const { setDraggedItem, isChatOpen } = useLayout();
   const isNews = signal.id.startsWith('news-');
+  const isPaper = signal.id.startsWith('paper-');
   const sourceUrl = signal.metadata?.sourceUrl as string | undefined;
   const techDirection = signal.metadata?.techDirection as string | undefined;
+  const venueName = signal.metadata?.venue_name as string | undefined;
+  const doi = signal.metadata?.doi as string | undefined;
+  const arxivId = signal.metadata?.arxiv_id as string | undefined;
   const typeBadgeClass = newsTypeBadge[signal.type] ?? 'bg-blue-500/10 border-blue-500/25 text-blue-400';
 
   // 时间显示：新闻用友好格式，论文直接显示
@@ -135,6 +139,28 @@ export default function SignalCard({ signal, onClick }: SignalCardProps) {
           {signal.title}
         </h3>
 
+        {/* 论文期刊标注 */}
+        {isPaper && venueName && (
+          <div className="flex items-center gap-1.5 mb-2">
+            {(doi || arxivId) ? (
+              <a
+                href={doi ? `https://doi.org/${doi}` : `https://arxiv.org/abs/${arxivId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-[rgba(99,102,241,0.08)] border border-[rgba(99,102,241,0.2)] text-indigo-300 text-[11px] font-medium rounded hover:bg-[rgba(99,102,241,0.15)] transition-colors max-w-[260px] truncate"
+              >
+                <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                {venueName}
+              </a>
+            ) : (
+              <span className="inline-flex items-center px-2 py-0.5 bg-[rgba(99,102,241,0.06)] border border-[rgba(99,102,241,0.15)] text-indigo-300/80 text-[11px] rounded max-w-[260px] truncate">
+                {venueName}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* 摘要 */}
         <p className="text-[#8892aa] text-sm mb-3 leading-relaxed line-clamp-2">{signal.summary}</p>
 
@@ -167,19 +193,15 @@ export default function SignalCard({ signal, onClick }: SignalCardProps) {
                 )}
               </>
             ) : (
-              /* 论文/其他卡片底部：原有三项 */
+              /* 论文卡片底部：作者数 + 领域数 */
               <>
                 <span className="flex items-center gap-1 hover:text-[#c8d4f0] transition-colors">
-                  <Building2 className="w-3.5 h-3.5" />
-                  {signal.relatedEntities.companies} 家公司
-                </span>
-                <span className="flex items-center gap-1 hover:text-[#c8d4f0] transition-colors">
                   <User className="w-3.5 h-3.5" />
-                  {signal.relatedEntities.people} 位人物
+                  {signal.relatedEntities.people} 位作者
                 </span>
                 <span className="flex items-center gap-1 hover:text-[#c8d4f0] transition-colors">
                   <Lightbulb className="w-3.5 h-3.5" />
-                  {signal.relatedEntities.technologies} 条技术
+                  {signal.relatedEntities.technologies} 个领域
                 </span>
               </>
             )}

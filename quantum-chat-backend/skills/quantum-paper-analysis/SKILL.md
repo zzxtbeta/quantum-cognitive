@@ -72,15 +72,18 @@ metadata:
 - `detail`：完整问题背景（用 `depth="detail"` 获取）
 - 重点关注：提到"商业化"、"工程化"、"规模化"的论文——这些是TRL较高的信号
 
-### 新增字段（API 已更新）
-| 字段 | 说明 | 投资用途 |
-|------|------|---------|
-| `venue_name` | 发表期刊/会议全称（如 "Physical Review Letters"、"Nature"、"Science"） | 快速判断论文权威性；顶刊=高可信度 |
-| `doi` | DOI 标识符 | 原文溯源 |
-| `arxiv_id` | arXiv 预印本 ID | 查看最新版本 |
-| `domains` | 领域对象数组 `[{id, name, level}]`，无需再查 domain tree | 直接读 `d.name` 即可，无需 `domain_ids` 映射 |
-
-> ✅ 优先使用 `domains[].name` 而非 `domain_ids`，可省略 `/gold/domains` 查询步骤。
+### 论文字段速查
+| 字段 | 说明 | 用途 |
+|------|------|------|
+| `venue_name` | 发表期刊/会议全称（如 "Physical Review Letters"、"Nature"） | 判断权威性；引用时作为来源 |
+| `doi` | DOI 标识符 | 原文链接：`https://doi.org/{doi}` |
+| `arxiv_id` | arXiv 预印本 ID | 预印本链接：`https://arxiv.org/abs/{arxiv_id}` |
+| `authors` | 作者数组，含 `name` 和 `affiliation` | 机构分析、人才追踪 |
+| `domains` | 领域对象数组 `[{id, name, level}]` | 直接读 `d.name`，**无需**再查 `/gold/domains` |
+| `research_problem` | 研究问题 `{summary, detail}` | 快速分类和深度分析 |
+| `tech_route` | 技术路线 `{summary, detail}` | 路线判断和竞争分析 |
+| `key_contributions` | 关键贡献数组 | 突破点和数值指标 |
+| `metrics` | 定量指标（qubit_count, fidelity 等） | 硬信号，TRL判断依据 |
 
 ### tech_route 字段解读
 - 关键词识别：超导 vs 离子阱 vs 中性原子 = 不同投资逻辑
@@ -127,9 +130,10 @@ metadata:
 | ... | | | | | |
 
 ### 2024-2025关键技术突破
-1. **[成果名称]**（论文：XXX, 作者）
+1. **[成果名称]**
    - 突破点：具体数值指标
    - 后续影响：对技术路线的意义
+   - 来源：作者等, *期刊名*, 年份 — [DOI链接或arXiv链接]
 
 ### 研究主题热度分析
 [按出现频次排序的研究主题，含比例]
@@ -142,4 +146,10 @@ metadata:
 - 🔥 最热赛道：[基于论文增长速度]
 - 💡 技术拐点：[即将商业化的关键指标]
 - ⚠️ 风险点：[技术路线竞争/可能被替代]
+
+### 引用论文
+> 报告中提到的每篇论文均需在此列出，格式：
+> `[N] 作者等, "论文标题", *期刊/会议名*, 年份. DOI: https://doi.org/{doi} 或 arXiv: https://arxiv.org/abs/{arxiv_id}`
+>
+> 若论文无 DOI 也无 arxiv_id，则仅列 venue_name + 年份。
 ```
