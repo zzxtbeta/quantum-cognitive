@@ -72,6 +72,16 @@ metadata:
 - `detail`：完整问题背景（用 `depth="detail"` 获取）
 - 重点关注：提到"商业化"、"工程化"、"规模化"的论文——这些是TRL较高的信号
 
+### 新增字段（API 已更新）
+| 字段 | 说明 | 投资用途 |
+|------|------|---------|
+| `venue_name` | 发表期刊/会议全称（如 "Physical Review Letters"、"Nature"、"Science"） | 快速判断论文权威性；顶刊=高可信度 |
+| `doi` | DOI 标识符 | 原文溯源 |
+| `arxiv_id` | arXiv 预印本 ID | 查看最新版本 |
+| `domains` | 领域对象数组 `[{id, name, level}]`，无需再查 domain tree | 直接读 `d.name` 即可，无需 `domain_ids` 映射 |
+
+> ✅ 优先使用 `domains[].name` 而非 `domain_ids`，可省略 `/gold/domains` 查询步骤。
+
 ### tech_route 字段解读
 - 关键词识别：超导 vs 离子阱 vs 中性原子 = 不同投资逻辑
 - 注意材料体系：铌、铝 vs BEC vs 光子波导 → 供应链依赖不同

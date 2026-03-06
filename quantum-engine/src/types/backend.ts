@@ -41,13 +41,16 @@ export interface BackendPaper {
   abstract: string;
   authors: BackendAuthor[];
   publish_date: string;
+  doi: string | null;
+  venue_name: string | null;
+  arxiv_id: string | null;
   extraction_id: number;
   research_problem: BackendResearchProblem | null;
   tech_route: BackendTechRoute | null;
   key_contributions: BackendKeyContribution[] | null;
   metrics: any | null;
   domain_ids: number[];
-  domains?: BackendDomain[]; // v2.1新增：直接包含领域名称
+  domains?: BackendDomain[];
   created_at: string;
   updated_at: string;
 }

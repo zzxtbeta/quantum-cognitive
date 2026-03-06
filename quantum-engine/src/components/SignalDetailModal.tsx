@@ -280,14 +280,57 @@ export default function SignalDetailModal({ signal, onClose, onOpenChat }: Signa
                 {m.abstract && <AbstractSection text={m.abstract} />}
 
                 {/* Publish Info */}
-                {(m.publish_date || m.paper_id || (m.domain_ids && m.domain_ids.length > 0)) && (
+                {(m.publish_date || m.venue_name || m.doi || m.arxiv_id || (m.domains && m.domains.length > 0) || (m.domain_ids && m.domain_ids.length > 0)) && (
                   <Section label="发表信息" accent="border-slate-600/40">
-                    <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
-                      {m.publish_date && <span className="text-[var(--th-text-muted)]"><span className="text-[var(--th-text-muted)] mr-1.5">日期</span>{m.publish_date}</span>}
-                      {m.paper_id && <span className="text-[var(--th-text-muted)] font-mono text-xs"><span className="not-italic text-[var(--th-text-muted)] mr-1.5 font-sans">ID</span>{m.paper_id}</span>}
+                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm mb-2">
+                      {m.venue_name && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="text-[var(--th-text-muted)] text-xs">期刊</span>
+                          <span className="text-[var(--th-text)] font-medium">{m.venue_name}</span>
+                        </span>
+                      )}
+                      {m.publish_date && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="text-[var(--th-text-muted)] text-xs">日期</span>
+                          <span className="text-[var(--th-text-muted)]">{m.publish_date}</span>
+                        </span>
+                      )}
                     </div>
-                    {m.domain_ids && m.domain_ids.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {m.doi && (
+                        <a
+                          href={`https://doi.org/${m.doi}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-[rgba(59,130,246,0.08)] border border-[rgba(59,130,246,0.2)] text-blue-300 text-xs rounded hover:bg-[rgba(59,130,246,0.15)] transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          DOI
+                        </a>
+                      )}
+                      {m.arxiv_id && (
+                        <a
+                          href={`https://arxiv.org/abs/${m.arxiv_id.replace('v\d+$', '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-[rgba(99,102,241,0.08)] border border-[rgba(99,102,241,0.2)] text-indigo-300 text-xs rounded hover:bg-[rgba(99,102,241,0.15)] transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          arXiv
+                        </a>
+                      )}
+                    </div>
+                    {/* 领域：优先使用 domains 对象，降级至 domain_ids */}
+                    {m.domains && m.domains.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {m.domains.map((d: any, idx: number) => (
+                          <span key={idx} className="px-2 py-0.5 bg-[var(--th-bg-elevated)] border border-[var(--th-divider)] text-[var(--th-text-muted)] text-xs rounded">
+                            {d.name}
+                          </span>
+                        ))}
+                      </div>
+                    ) : m.domain_ids && m.domain_ids.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
                         {m.domain_ids.map((id: number, idx: number) => (
                           <span key={idx} className="px-2 py-0.5 bg-[var(--th-bg-elevated)] border border-[var(--th-divider)] text-[var(--th-text-muted)] text-xs rounded">{domainNames[id] ?? `领域 ${id}`}</span>
                         ))}
