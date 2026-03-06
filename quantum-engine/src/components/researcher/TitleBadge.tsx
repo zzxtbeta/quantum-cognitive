@@ -6,7 +6,7 @@ interface TitleBadgeProps {
   showOriginal?: boolean;
 }
 
-export default function TitleBadge({ title, originalTitle, showOriginal = false }: TitleBadgeProps) {
+export default function TitleBadge({ title, originalTitle, showOriginal = true }: TitleBadgeProps) {
   const config = TITLE_CONFIG[title];
 
   return (

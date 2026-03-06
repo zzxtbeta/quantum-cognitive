@@ -12,7 +12,7 @@ const POSITION_PRESETS = ['教授', '副教授', '研究员', '博士后', '博�
 export default function Researchers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInstitutions, setSelectedInstitutions] = useState<Institution[]>([]);
-  const [positionKeyword, setPositionKeyword] = useState('');
+  const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [researchAreaQuery, setResearchAreaQuery] = useState('');
   const [hasEmail, setHasEmail] = useState(false);
   const [hasBiography, setHasBiography] = useState(false);
@@ -24,16 +24,16 @@ export default function Researchers() {
   // 当筛选条件变化时重置页码
   useEffect(() => {
     setPage(1);
-  }, [selectedInstitutions, positionKeyword, researchAreaQuery, searchQuery, hasEmail, hasBiography]);
+  }, [selectedInstitutions, selectedPositions, researchAreaQuery, searchQuery, hasEmail, hasBiography]);
 
   const filters = useMemo(() => ({
     name: searchQuery || undefined,
     institution: selectedInstitutions.length > 0 ? selectedInstitutions : undefined,
-    position: positionKeyword || undefined,
+    // 职位多选时不传 API，统一客户端过滤
     researchArea: researchAreaQuery || undefined,
     page,
     pageSize,
-  }), [selectedInstitutions, positionKeyword, researchAreaQuery, searchQuery, page, pageSize]);
+  }), [selectedInstitutions, researchAreaQuery, searchQuery, page, pageSize]);
 
   const { researchers, loading, total, hasMore } = useResearchers({ initialFilters: filters });
 
@@ -42,9 +42,13 @@ export default function Researchers() {
     return researchers.filter(r => {
       if (hasEmail && !r.email) return false;
       if (hasBiography && (!r.biography || r.biography.length < 10)) return false;
+      if (selectedPositions.length > 0) {
+        const rawTitle = (r.title || '').toLowerCase();
+        if (!selectedPositions.some(p => rawTitle.includes(p.toLowerCase()))) return false;
+      }
       return true;
     });
-  }, [researchers, hasEmail, hasBiography]);
+  }, [researchers, hasEmail, hasBiography, selectedPositions]);
 
   const toggleInstitution = (inst: Institution) => {
     setSelectedInstitutions(prev =>
@@ -53,12 +57,14 @@ export default function Researchers() {
   };
 
   const togglePosition = (pos: string) => {
-    setPositionKeyword(prev => (prev === pos ? '' : pos));
+    setSelectedPositions(prev =>
+      prev.includes(pos) ? prev.filter(p => p !== pos) : [...prev, pos]
+    );
   };
 
   const clearFilters = () => {
     setSelectedInstitutions([]);
-    setPositionKeyword('');
+    setSelectedPositions([]);
     setResearchAreaQuery('');
     setHasEmail(false);
     setHasBiography(false);
@@ -67,7 +73,7 @@ export default function Researchers() {
 
   const hasActiveFilters =
     selectedInstitutions.length > 0 ||
-    positionKeyword ||
+    selectedPositions.length > 0 ||
     researchAreaQuery ||
     hasEmail ||
     hasBiography ||
@@ -148,7 +154,7 @@ export default function Researchers() {
                 key={pos}
                 onClick={() => togglePosition(pos)}
                 className={`btn-glow px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  positionKeyword === pos
+                  selectedPositions.includes(pos)
                     ? 'bg-blue-600 text-white border border-blue-500 shadow-glow-sm'
                     : 'bg-[rgba(59,130,246,0.06)] border border-[rgba(59,130,246,0.15)] text-[#8892aa] hover:text-[#c8d4f0] hover:border-blue-500/30'
                 }`}
@@ -225,14 +231,14 @@ export default function Researchers() {
               </button>
             </span>
           ))}
-          {positionKeyword && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[rgba(59,130,246,0.08)] text-[#c8d4f0] text-xs rounded-full border border-[rgba(59,130,246,0.15)]">
-              职位: {positionKeyword}
-              <button onClick={() => setPositionKeyword('')} className="hover:text-white ml-0.5">
+          {selectedPositions.map(pos => (
+            <span key={pos} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[rgba(59,130,246,0.08)] text-[#c8d4f0] text-xs rounded-full border border-[rgba(59,130,246,0.15)]">
+              职位: {pos}
+              <button onClick={() => togglePosition(pos)} className="hover:text-white ml-0.5">
                 <X className="w-3 h-3" />
               </button>
             </span>
-          )}
+          ))}
           {researchAreaQuery && (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[rgba(59,130,246,0.08)] text-[#c8d4f0] text-xs rounded-full border border-[rgba(59,130,246,0.15)]">
               研究: {researchAreaQuery}
