@@ -105,6 +105,7 @@ function LogCard({ entry }: { entry: ToolLogEntry }) {
 export default function ToolLogs() {
   const [sessions, setSessions] = useState<ToolLogSession[]>([]);
   const [turns, setTurns] = useState<ToolLogTurn[]>([]);
+  const [turnApiAvailable, setTurnApiAvailable] = useState(true);
   const [toolNames, setToolNames] = useState<string[]>([]);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [selectedTurn, setSelectedTurn] = useState<string>('');
@@ -134,6 +135,7 @@ export default function ToolLogs() {
   }, []);
 
   const loadTurns = useCallback(async () => {
+    if (!turnApiAvailable) return;
     if (!selectedSession) {
       setTurns([]);
       setSelectedTurn('');
@@ -146,9 +148,17 @@ export default function ToolLogs() {
         setSelectedTurn('');
       }
     } catch (e: any) {
-      setErrorMsg(e?.message || '加载回合失败');
+      const msg = String(e?.message || '');
+      if (msg.includes('HTTP 404')) {
+        // 后端尚未升级到 turns 接口时，自动降级为仅按 thread 过滤
+        setTurnApiAvailable(false);
+        setTurns([]);
+        setSelectedTurn('');
+      } else {
+        setErrorMsg(e?.message || '加载回合失败');
+      }
     }
-  }, [selectedSession, selectedTurn]);
+  }, [selectedSession, selectedTurn, turnApiAvailable]);
 
   const loadLogs = useCallback(async (reset = true) => {
     setLoadingLogs(true);
@@ -178,8 +188,8 @@ export default function ToolLogs() {
 
   useEffect(() => {
     setSelectedTurn('');
-    loadTurns();
-  }, [selectedSession, loadTurns]);
+    if (turnApiAvailable) loadTurns();
+  }, [selectedSession, loadTurns, turnApiAvailable]);
 
   useEffect(() => {
     setOffset(0);
@@ -191,11 +201,11 @@ export default function ToolLogs() {
     if (!autoRefresh) return;
     const timer = window.setInterval(() => {
       loadSessions();
-      if (selectedSession) loadTurns();
+      if (selectedSession && turnApiAvailable) loadTurns();
       loadLogs(true);
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [autoRefresh, selectedSession, loadSessions, loadTurns, loadLogs]);
+  }, [autoRefresh, selectedSession, turnApiAvailable, loadSessions, loadTurns, loadLogs]);
 
   return (
     <div className="flex gap-5 h-[calc(100vh-8rem)]">
@@ -281,7 +291,7 @@ export default function ToolLogs() {
           <select
             value={selectedTurn}
             onChange={e => setSelectedTurn(e.target.value)}
-            disabled={!selectedSession}
+            disabled={!selectedSession || !turnApiAvailable}
             className="bg-slate-900/70 border border-slate-400/40 rounded-lg px-3 py-1.5 text-[12px] text-slate-100 focus:outline-none focus:border-cyan-300/60 transition-all disabled:opacity-50"
           >
             <option value="">全部回合</option>
@@ -289,6 +299,12 @@ export default function ToolLogs() {
               <option key={t.turn_id} value={t.turn_id}>{turnLabel(t.turn_id)} · {t.call_count} 次</option>
             ))}
           </select>
+
+          {!turnApiAvailable && (
+            <span className="text-[11px] px-2 py-1 rounded border border-amber-400/30 bg-amber-900/25 text-amber-100">
+              后端未启用回合接口，当前按 thread 展示
+            </span>
+          )}
 
           <select
             value={selectedTool}
