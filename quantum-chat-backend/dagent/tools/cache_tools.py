@@ -30,56 +30,33 @@ def save_research_artifact(
     overwrite: bool = False,
 ) -> str:
     """
-    将研究过程中的中间分析结果保存为 Markdown 文件，便于复用和避免重复请求。
-    每个子Agent在完成分析后都应调用此工具保存成果。
+    记录研究成果元数据（内容已由工具调用日志系统持久化，无需额外写入磁盘）。
+    每个子Agent在完成分析后调用此工具，触发日志记录。
 
     Args:
-        filename: 文件名（不含日期前缀和扩展名），如 'quantum-computing-paper-analysis'
-                  '中国量子人才图谱' 'quantum-funding-2025'
-        content: Markdown 格式的分析内容
+        filename: 成果名称，如 'quantum-computing-paper-analysis' '中国量子人才图谱'
+        content: Markdown 格式的分析内容（由工具日志系统自动捕获完整内容）
         category: 分类标签，如 'paper-analysis' 'people-intel' 'market-intel' 'investment-report'
         agent_name: 产出此成果的 Agent 名称，如 'paper-researcher' 'people-intel' 'news-market'
-        overwrite: 是否覆盖已有同名文件（默认追加时间戳）
+        overwrite: 保留参数，兼容旧调用（已无实际效果）
 
     Returns:
-        保存成功信息，含文件路径；或错误信息
+        成功确认 JSON（内容已由工具日志系统持久化，可在工具日志界面查看完整报告）
     """
-    try:
-        cache_dir = _ensure_cache_dir()
-        # 清理文件名中的特殊字符
-        safe_name = "".join(c if c.isalnum() or c in "-_. " else "_" for c in filename)
-        safe_name = safe_name.strip().replace(" ", "-")
+    safe_name = "".join(c if c.isalnum() or c in "-_. " else "_" for c in filename)
+    safe_name = safe_name.strip().replace(" ", "-")
+    ref_name = f"{category}-{safe_name}-{datetime.now().strftime('%H%M%S')}.md"
 
-        if not overwrite:
-            timestamp = datetime.now().strftime("%H%M%S")
-            full_name = f"{category}-{safe_name}-{timestamp}.md"
-        else:
-            full_name = f"{category}-{safe_name}.md"
+    logger.info("[%s] 研究成果已记录到工具日志: %s (%d chars)", agent_name, ref_name, len(content))
 
-        filepath = cache_dir / full_name
-
-        # 写入文件（加上元数据头，标记产出 agent）
-        header = f"""---
-created: {datetime.now().isoformat()}
-category: {category}
-agent: {agent_name}
-filename: {filename}
----
-
-"""
-        filepath.write_text(header + content, encoding="utf-8")
-        logger.info("[%s] 已保存研究成果: %s", agent_name, filepath)
-
-        return json.dumps({
-            "status": "saved",
-            "path": str(filepath),
-            "filename": full_name,
-            "agent": agent_name,
-            "size_bytes": len(content),
-        }, ensure_ascii=False)
-    except Exception as e:
-        logger.error("save_research_artifact 失败: %s", e)
-        return json.dumps({"status": "error", "error": str(e)}, ensure_ascii=False)
+    return json.dumps({
+        "status": "logged",
+        "ref_name": ref_name,
+        "agent": agent_name,
+        "category": category,
+        "size_chars": len(content),
+        "note": "内容已由工具调用日志系统持久化，可在工具日志界面查询完整报告",
+    }, ensure_ascii=False)
 
 
 def list_research_artifacts(

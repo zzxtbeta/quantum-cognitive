@@ -68,7 +68,7 @@ def log_start(run_id: str, thread_id: str, turn_id: str, tool: str, label: str, 
         c.execute(
             "INSERT OR IGNORE INTO tool_calls "
             "(run_id, thread_id, turn_id, tool, label, input_str, ts) VALUES (?,?,?,?,?,?,?)",
-            (run_id, thread_id, turn_id, tool, label, input_str[:4000], ts),
+            (run_id, thread_id, turn_id, tool, label, input_str[:50000], ts),
         )
 
 
@@ -103,7 +103,7 @@ def query_logs(
     sql = "SELECT * FROM tool_calls"
     if wheres:
         sql += " WHERE " + " AND ".join(wheres)
-    sql += " ORDER BY ts DESC LIMIT ? OFFSET ?"
+    sql += " ORDER BY ts ASC LIMIT ? OFFSET ?"
     params += [limit, offset]
     with _conn() as c:
         return [dict(r) for r in c.execute(sql, params).fetchall()]
