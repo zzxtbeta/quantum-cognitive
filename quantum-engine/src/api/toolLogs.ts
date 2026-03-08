@@ -6,6 +6,7 @@ export interface ToolLogEntry {
   id: number;
   run_id: string;
   thread_id: string;
+  turn_id: string;
   tool: string;
   label: string | null;
   input_str: string | null;
@@ -16,6 +17,13 @@ export interface ToolLogEntry {
 
 export interface ToolLogSession {
   thread_id: string;
+  last_activity: string;
+  call_count: number;
+}
+
+export interface ToolLogTurn {
+  turn_id: string;
+  started_at: string;
   last_activity: string;
   call_count: number;
 }
@@ -31,6 +39,7 @@ async function getJson<T>(url: string): Promise<T> {
 
 export function fetchToolLogs(params: {
   thread_id?: string;
+  turn_id?: string;
   tool?: string;
   limit?: number;
   offset?: number;
@@ -52,4 +61,10 @@ export function fetchToolLogSessions() {
 export function fetchToolNames() {
   return getJson<{ tools: string[] }>(`${CHAT_BASE}/deep/tool-logs/tools`)
     .then(r => r.tools);
+}
+
+export function fetchToolTurns(threadId: string) {
+  const qs = new URLSearchParams({ thread_id: threadId }).toString();
+  return getJson<{ turns: ToolLogTurn[] }>(`${CHAT_BASE}/deep/tool-logs/turns?${qs}`)
+    .then(r => r.turns);
 }

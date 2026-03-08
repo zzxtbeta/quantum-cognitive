@@ -80,10 +80,11 @@ _TOOL_LABELS: dict[str, str] = {
 class _ProgressHandler(AsyncCallbackHandler):
     """将工具调用事件转发到 asyncio.Queue，供 SSE 流消费。同时持久化到 tool_log DB。"""
 
-    def __init__(self, queue: asyncio.Queue, thread_id: str) -> None:
+    def __init__(self, queue: asyncio.Queue, thread_id: str, turn_id: str) -> None:
         super().__init__()
         self._queue = queue
         self._thread_id = thread_id
+        self._turn_id = turn_id
         self._pending: dict[str, float] = {}  # run_id → monotonic start time
 
     async def on_tool_start(
@@ -106,7 +107,7 @@ class _ProgressHandler(AsyncCallbackHandler):
         # 持久化到 DB（含内部文件操作，用于完整审计）
         try:
             from core.tool_log import log_start
-            log_start(run_id_str, self._thread_id, tool_name, label, str(input_str))
+            log_start(run_id_str, self._thread_id, self._turn_id, tool_name, label, str(input_str))
         except Exception:
             pass
 
@@ -158,7 +159,7 @@ class _ProgressHandler(AsyncCallbackHandler):
 
 # ─── SSE 生成器 ────────────────────────────────────────────────────────────────
 
-async def _sse_stream(message: str, thread_id: str) -> AsyncGenerator[str, None]:
+async def _sse_stream(message: str, thread_id: str, turn_id: str) -> AsyncGenerator[str, None]:
     """
     将 DeepAgent astream + 进度回调转换为 SSE 事件流。
 
@@ -180,7 +181,7 @@ async def _sse_stream(message: str, thread_id: str) -> AsyncGenerator[str, None]
     event_queue: asyncio.Queue[dict | object] = asyncio.Queue()
     _SENTINEL = object()
 
-    progress_handler = _ProgressHandler(event_queue, thread_id)
+    progress_handler = _ProgressHandler(event_queue, thread_id, turn_id)
     config = {
         "configurable": {"thread_id": thread_id},
         "callbacks": [progress_handler],
@@ -226,7 +227,7 @@ async def _sse_stream(message: str, thread_id: str) -> AsyncGenerator[str, None]
         while True:
             event = await event_queue.get()
             if event is _SENTINEL:
-                yield _sse_event({"type": "done", "thread_id": thread_id})
+                yield _sse_event({"type": "done", "thread_id": thread_id, "turn_id": turn_id})
                 break
             yield _sse_event(event)  # type: ignore[arg-type]
     except asyncio.CancelledError:
@@ -250,9 +251,10 @@ def _sse_event(data: dict) -> str:
 async def deep_stream(req: DeepRequest):
     """SSE 流式深度研究（DeepAgent 模式主接口）"""
     thread_id = req.thread_id or str(uuid.uuid4())
-    logger.info("[deep/stream] thread=%s | msg=%s", thread_id, req.message[:80])
+    turn_id = f"turn-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"
+    logger.info("[deep/stream] thread=%s turn=%s | msg=%s", thread_id, turn_id, req.message[:80])
     return StreamingResponse(
-        _sse_stream(req.message, thread_id),
+        _sse_stream(req.message, thread_id, turn_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -338,10 +340,20 @@ async def get_tool_log_tool_names():
 @router.get("/tool-logs")
 async def get_tool_logs(
     thread_id: Optional[str] = None,
+    turn_id: Optional[str] = None,
     tool: Optional[str] = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
     """查询工具调用记录，支持按 thread_id / tool 过滤，按时间倒序。"""
     from core.tool_log import query_logs
-    return {"logs": query_logs(thread_id=thread_id, tool=tool, limit=limit, offset=offset)}
+    return {
+        "logs": query_logs(thread_id=thread_id, turn_id=turn_id, tool=tool, limit=limit, offset=offset)
+    }
+
+
+@router.get("/tool-logs/turns")
+async def get_tool_log_turns(thread_id: str, limit: int = Query(50, ge=1, le=200)):
+    """获取某个 thread 下的回合列表。"""
+    from core.tool_log import get_turns
+    return {"turns": get_turns(thread_id=thread_id, limit=limit)}

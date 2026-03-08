@@ -1,15 +1,16 @@
 """工具调用日志持久化（独立 SQLite，与 LangGraph checkpointer 分离）。
 
 表结构：tool_calls
-  id          — 自增主键
-  run_id      — LangChain callback run_id（UUID 字符串，唯一标识一次调用）
-  thread_id   — 会话 ID（来自请求）
-  tool        — 工具函数名称
-  label       — 用户友好标签
-  input_str   — 工具入参（截断至 4000 字符）
-  output_str  — 工具输出（截断至 8000 字符）
-  duration_ms — 执行耗时（毫秒）
-  ts          — 调用开始时间（UTC ISO 8601）
+    id          — 自增主键
+    run_id      — LangChain callback run_id（UUID 字符串，唯一标识一次调用）
+    thread_id   — 会话 ID（来自请求）
+    turn_id     — 对话回合 ID（同一 thread 下每轮问题唯一）
+    tool        — 工具函数名称
+    label       — 用户友好标签
+    input_str   — 工具入参（截断至 4000 字符）
+    output_str  — 工具输出（截断至 8000 字符）
+    duration_ms — 执行耗时（毫秒）
+    ts          — 调用开始时间（UTC ISO 8601）
 """
 import sqlite3
 from datetime import datetime, timezone
@@ -26,6 +27,11 @@ def _conn() -> sqlite3.Connection:
     return c
 
 
+def _has_column(c: sqlite3.Connection, table: str, column: str) -> bool:
+    rows = c.execute(f"PRAGMA table_info({table})").fetchall()
+    return any(r[1] == column for r in rows)
+
+
 def _ensure_tables() -> None:
     with _conn() as c:
         c.execute("""
@@ -33,6 +39,7 @@ def _ensure_tables() -> None:
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 run_id      TEXT UNIQUE,
                 thread_id   TEXT NOT NULL,
+                turn_id     TEXT NOT NULL DEFAULT 'legacy',
                 tool        TEXT NOT NULL,
                 label       TEXT,
                 input_str   TEXT,
@@ -41,22 +48,27 @@ def _ensure_tables() -> None:
                 ts          TEXT NOT NULL
             )
         """)
+        # 对历史表做兼容迁移（旧表没有 turn_id）
+        if not _has_column(c, "tool_calls", "turn_id"):
+            c.execute("ALTER TABLE tool_calls ADD COLUMN turn_id TEXT NOT NULL DEFAULT 'legacy'")
+
         c.execute("CREATE INDEX IF NOT EXISTS idx_tc_thread ON tool_calls(thread_id)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_tc_ts ON tool_calls(ts)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_tc_tool ON tool_calls(tool)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_tc_turn ON tool_calls(turn_id)")
 
 
 _ensure_tables()
 
 
-def log_start(run_id: str, thread_id: str, tool: str, label: str, input_str: str) -> None:
+def log_start(run_id: str, thread_id: str, turn_id: str, tool: str, label: str, input_str: str) -> None:
     """记录工具调用开始（output/duration 由 log_end 补充）。"""
     ts = datetime.now(timezone.utc).isoformat()
     with _conn() as c:
         c.execute(
             "INSERT OR IGNORE INTO tool_calls "
-            "(run_id, thread_id, tool, label, input_str, ts) VALUES (?,?,?,?,?,?)",
-            (run_id, thread_id, tool, label, input_str[:4000], ts),
+            "(run_id, thread_id, turn_id, tool, label, input_str, ts) VALUES (?,?,?,?,?,?,?)",
+            (run_id, thread_id, turn_id, tool, label, input_str[:4000], ts),
         )
 
 
@@ -71,6 +83,7 @@ def log_end(run_id: str, output_str: str, duration_ms: int) -> None:
 
 def query_logs(
     thread_id: Optional[str] = None,
+    turn_id: Optional[str] = None,
     tool: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
@@ -81,6 +94,9 @@ def query_logs(
     if thread_id:
         wheres.append("thread_id = ?")
         params.append(thread_id)
+    if turn_id:
+        wheres.append("turn_id = ?")
+        params.append(turn_id)
     if tool:
         wheres.append("tool = ?")
         params.append(tool)
@@ -107,6 +123,26 @@ def get_sessions(limit: int = 30) -> list[dict]:
             LIMIT ?
             """,
             (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_turns(thread_id: str, limit: int = 50) -> list[dict]:
+    """返回某个 thread 的回合列表（每轮对话一个 turn_id）。"""
+    with _conn() as c:
+        rows = c.execute(
+            """
+            SELECT turn_id,
+                   MIN(ts)  AS started_at,
+                   MAX(ts)  AS last_activity,
+                   COUNT(*) AS call_count
+            FROM tool_calls
+            WHERE thread_id = ?
+            GROUP BY turn_id
+            ORDER BY last_activity DESC
+            LIMIT ?
+            """,
+            (thread_id, limit),
         ).fetchall()
     return [dict(r) for r in rows]
 
