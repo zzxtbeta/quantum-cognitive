@@ -1,7 +1,8 @@
 // 公司库 API — /api/gold/companies
 
 import { apiClient } from './client';
-import { GoldCompany, GoldCompanyFilters, GoldCompanyListResponse, Candidate, CandidateFilters, CandidateListResponse } from '../types';
+import type { GoldCompany, GoldCompanyFilters, GoldCompanyListResponse } from '../types';
+import { Candidate, CandidateFilters, CandidateListResponse } from '../types';
 
 /**
  * 查询 Gold 层公司列表
