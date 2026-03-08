@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Zap, Building2, Map, Star, FileText, Users, Home, Layers } from 'lucide-react';
+import { Zap, Building2, Map, Star, FileText, Users, Home, Layers, ScrollText } from 'lucide-react';
 
 const mainNav = [
   { to: '/home', icon: Home, label: '主页' },
@@ -12,6 +12,7 @@ const mainNav = [
 const personalNav = [
   { to: '/focus', icon: Star, label: '我的关注' },
   { to: '/notes', icon: FileText, label: '我的笔记' },
+  { to: '/tool-logs', icon: ScrollText, label: '工具日志' },
 ];
 
 function NavItem({ to, icon: Icon, label }: { to: string; icon: React.ElementType; label: string }) {

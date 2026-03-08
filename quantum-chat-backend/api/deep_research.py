@@ -10,10 +10,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 import uuid
 from typing import AsyncGenerator, Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from langchain_core.callbacks import AsyncCallbackHandler
 from pydantic import BaseModel
@@ -77,11 +78,13 @@ _TOOL_LABELS: dict[str, str] = {
 # ─── 进度回调处理器 ─────────────────────────────────────────────────────────────
 
 class _ProgressHandler(AsyncCallbackHandler):
-    """将工具调用事件转发到 asyncio.Queue，供 SSE 流消费。"""
+    """将工具调用事件转发到 asyncio.Queue，供 SSE 流消费。同时持久化到 tool_log DB。"""
 
-    def __init__(self, queue: asyncio.Queue) -> None:
+    def __init__(self, queue: asyncio.Queue, thread_id: str) -> None:
         super().__init__()
         self._queue = queue
+        self._thread_id = thread_id
+        self._pending: dict[str, float] = {}  # run_id → monotonic start time
 
     async def on_tool_start(
         self,
@@ -95,6 +98,17 @@ class _ProgressHandler(AsyncCallbackHandler):
         **kwargs: Any,
     ) -> None:
         tool_name = serialized.get("name", "unknown")
+        run_id_str = str(run_id) if run_id else "unknown"
+        self._pending[run_id_str] = time.monotonic()
+
+        label = _TOOL_LABELS.get(tool_name, tool_name)
+
+        # 持久化到 DB（含内部文件操作，用于完整审计）
+        try:
+            from core.tool_log import log_start
+            log_start(run_id_str, self._thread_id, tool_name, label, str(input_str))
+        except Exception:
+            pass
 
         # 识别子Agent 启动
         if tool_name == "task":
@@ -102,22 +116,21 @@ class _ProgressHandler(AsyncCallbackHandler):
                 inp = json.loads(input_str) if isinstance(input_str, str) else input_str
                 subagent = inp.get("subagent_type", "subagent")
                 desc = (inp.get("description") or "")[:100]
-                label = _SUBAGENT_LABELS.get(subagent, f"{subagent}")
+                subagent_label = _SUBAGENT_LABELS.get(subagent, f"{subagent}")
                 await self._queue.put({
                     "type": "agent_start",
                     "agent": subagent,
-                    "content": f"{label} 启动中…{desc[:60]}{'…' if len(desc) > 60 else ''}",
+                    "content": f"{subagent_label} 启动中…{desc[:60]}{'…' if len(desc) > 60 else ''}",
                 })
                 return
             except Exception:
                 pass
 
-        # 其他工具调用（排除文件系统噪声）
+        # 其他工具调用（SSE 层过滤内部文件操作）
         _FILE_OPS = {"write_file", "read_file", "edit_file", "ls", "glob", "grep", "write_todos"}
         if tool_name in _FILE_OPS:
-            return  # 不暴露内部文件操作
+            return
 
-        label = _TOOL_LABELS.get(tool_name, tool_name)
         await self._queue.put({
             "type": "step",
             "tool": tool_name,
@@ -132,6 +145,14 @@ class _ProgressHandler(AsyncCallbackHandler):
         parent_run_id: Any = None,
         **kwargs: Any,
     ) -> None:
+        run_id_str = str(run_id) if run_id else "unknown"
+        start = self._pending.pop(run_id_str, None)
+        duration_ms = int((time.monotonic() - start) * 1000) if start is not None else 0
+        try:
+            from core.tool_log import log_end
+            log_end(run_id_str, str(output), duration_ms)
+        except Exception:
+            pass
         await self._queue.put({"type": "step_done"})
 
 
@@ -159,7 +180,7 @@ async def _sse_stream(message: str, thread_id: str) -> AsyncGenerator[str, None]
     event_queue: asyncio.Queue[dict | object] = asyncio.Queue()
     _SENTINEL = object()
 
-    progress_handler = _ProgressHandler(event_queue)
+    progress_handler = _ProgressHandler(event_queue, thread_id)
     config = {
         "configurable": {"thread_id": thread_id},
         "callbacks": [progress_handler],
@@ -296,3 +317,31 @@ async def clear_deep_thread(thread_id: str):
     except Exception:
         pass
     return {"thread_id": thread_id, "cleared": True}
+
+
+# ─── 工具调用日志 API ────────────────────────────────────────────────────────────
+
+@router.get("/tool-logs/sessions")
+async def get_tool_log_sessions(limit: int = Query(30, ge=1, le=200)):
+    """列出最近有工具调用的会话，含调用次数与最后活动时间。"""
+    from core.tool_log import get_sessions
+    return {"sessions": get_sessions(limit=limit)}
+
+
+@router.get("/tool-logs/tools")
+async def get_tool_log_tool_names():
+    """返回所有出现过的工具名称（用于前端 filter）。"""
+    from core.tool_log import get_tool_names
+    return {"tools": get_tool_names()}
+
+
+@router.get("/tool-logs")
+async def get_tool_logs(
+    thread_id: Optional[str] = None,
+    tool: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """查询工具调用记录，支持按 thread_id / tool 过滤，按时间倒序。"""
+    from core.tool_log import query_logs
+    return {"logs": query_logs(thread_id=thread_id, tool=tool, limit=limit, offset=offset)}

@@ -34,3 +34,8 @@ desktop.ini
 *.sw?
 .idea/
 .vscode/
+
+quantum-chat-backend/deep_memory.db
+quantum-chat-backend/deep_memory.db-shm
+quantum-chat-backend/deep_memory.db-wal
+logs/tool_calls.db
