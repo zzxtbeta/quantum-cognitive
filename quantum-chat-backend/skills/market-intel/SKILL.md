@@ -61,9 +61,9 @@ scope: deep-research
 
 ---
 
-## 保存策略
+## 输出策略
 
-每次完成分析后，将报告保存为 `market-intel` 类别的 artifact，文件名格式 `market-intel-<主题>-<日期>`。
+完成分析后将结果返回给编排者。**不调用 `save_research_artifact`**——中间成果由系统自动记录到日志，最终报告由 investment-research 编排者统一保存（category=`investment-report`）。
 
 ---
 

@@ -36,7 +36,7 @@ scope: deep-research
 
 **市场情报** 负责市场维度：检索近12个月融资事件、政策动向、竞争格局，每条信息附来源和日期。
 
-三路完成后，综合三份报告生成最终研判；每个维度同步保存中间成果为 artifact。
+三路完成后，综合三份报告生成最终研判，由编排者（investment-research）调用 `save_research_artifact` 保存最终报告（category=`investment-report`）。子维度（paper-analysis/people-intel/market-intel）的中间成果**仅记录到日志，不写磁盘**——日志中可查，不占用文件存储。
 
 ## 技术成熟度（TRL）参考框架
 

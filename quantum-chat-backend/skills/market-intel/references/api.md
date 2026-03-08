@@ -209,4 +209,4 @@ result = client.search(
 | `query_news_db(keyword, start_date, end_date, ...)` | `GET {base_url}/api/news` |
 | `semantic_search_news(query, top_k)` | `POST {base_url}/api/news/search` |
 | `search_news(query)` | Tavily `client.search(topic="news")` |
-| `save_research_artifact(...)` | 写入本地文件，不调用外部 HTTP API |
+| `save_research_artifact(...)` | 子维度（paper-analysis/people-intel/market-intel）调用时仅记录日志，不写磁盘；最终报告由 investment-research 编排者以 category=`investment-report` 调用时才写磁盘 |

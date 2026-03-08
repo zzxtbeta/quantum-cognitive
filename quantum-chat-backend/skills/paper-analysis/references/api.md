@@ -153,7 +153,7 @@ GET {base_url}/papers?include_stats=true&page_size=50
 | `batch_scan_papers(domain_ids, pages_to_scan, depth)` | 循环调用 `GET {base_url}/papers`（多页） |
 | `analyze_theme(theme, domain_ids)` | 先调用 `batch_scan_papers`，再做汇总分析 |
 | `semantic_search_papers(query, top_k)` | `POST {base_url}/papers/search`（向量语义检索） |
-| `save_research_artifact(...)` | 写入本地文件，不调用外部 HTTP API |
+| `save_research_artifact(...)` | 子维度（paper-analysis/people-intel/market-intel）调用时仅记录日志，不写磁盘；最终报告由 investment-research 编排者以 category=`investment-report` 调用时才写磁盘 |
 
 ---
 

@@ -43,9 +43,9 @@ scope: deep-research
 
 针对第二步发现的高价值方向，用更精确的关键词或作者名做针对性检索，深度读取 `tech_route`、`key_contributions`、`metrics` 字段。
 
-### 第四步：保存并输出
+### 第四步：输出（不保存中间文件）
 
-完成分析后保存为 `paper-analysis` 类别的 artifact，文件名含主题和日期。
+完成分析后将结果返回给编排者。**不调用 `save_research_artifact`**——中间成果由系统自动记录到日志，最终报告由 investment-research 编排者统一保存。
 
 ---
 
