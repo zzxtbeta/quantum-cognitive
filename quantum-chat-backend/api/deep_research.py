@@ -75,6 +75,40 @@ _TOOL_LABELS: dict[str, str] = {
     "write_todos": "更新任务列表",
 }
 
+# ─── 工具输入/输出标准化 ──────────────────────────────────────────────────────────
+
+def _normalize_input(input_str: str) -> str:
+    """将工具输入规范化为 JSON 字符串，便于前端显示。支持 JSON 字符串和 Python repr 两种格式。"""
+    s = str(input_str).strip()
+    try:
+        json.loads(s)
+        return s  # 已是有效 JSON
+    except (ValueError, TypeError):
+        pass
+    # Python dict/list repr（单引号），用 ast.literal_eval 转换
+    try:
+        import ast
+        parsed = ast.literal_eval(s)
+        return json.dumps(parsed, ensure_ascii=False)
+    except Exception:
+        pass
+    return s
+
+
+def _normalize_output(output: Any) -> str:
+    """将工具输出规范化为字符串。LangChain ToolMessage 自动提取 content 字段。"""
+    if isinstance(output, str):
+        return output
+    # LangChain ToolMessage / BaseMessage 等对象有 .content 属性
+    content = getattr(output, "content", None)
+    if content is not None:
+        return str(content)
+    try:
+        return json.dumps(output, ensure_ascii=False, default=str)
+    except Exception:
+        return str(output)
+
+
 # ─── 进度回调处理器 ─────────────────────────────────────────────────────────────
 
 class _ProgressHandler(AsyncCallbackHandler):
@@ -107,7 +141,7 @@ class _ProgressHandler(AsyncCallbackHandler):
         # 持久化到 DB（含内部文件操作，用于完整审计）
         try:
             from core.tool_log import log_start
-            log_start(run_id_str, self._thread_id, self._turn_id, tool_name, label, str(input_str))
+            log_start(run_id_str, self._thread_id, self._turn_id, tool_name, label, _normalize_input(str(input_str)))
         except Exception:
             pass
 
@@ -151,7 +185,7 @@ class _ProgressHandler(AsyncCallbackHandler):
         duration_ms = int((time.monotonic() - start) * 1000) if start is not None else 0
         try:
             from core.tool_log import log_end
-            log_end(run_id_str, str(output), duration_ms)
+            log_end(run_id_str, _normalize_output(output), duration_ms)
         except Exception:
             pass
         await self._queue.put({"type": "step_done"})

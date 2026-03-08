@@ -40,6 +40,95 @@ function turnLabel(turnId?: string | null): string {
   return `回合 ${shortId(t)}`;
 }
 
+// ── 智能内容解析与渲染 ────────────────────────────────────────────────────────
+
+function unescapeStr(s: string): string {
+  return s.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '');
+}
+
+type ParsedContent =
+  | { type: 'artifact'; meta: Record<string, unknown>; content: string }
+  | { type: 'json'; pretty: string }
+  | { type: 'text'; text: string };
+
+function parseContent(raw: string): ParsedContent {
+  const trimmed = raw.trim();
+
+  // 1. 试 JSON parse
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>;
+      const content = obj['content'];
+      if (typeof content === 'string' && content.length > 150) {
+        const { content: _c, ...meta } = obj;
+        return { type: 'artifact', meta, content: unescapeStr(content) };
+      }
+    }
+    return { type: 'json', pretty: JSON.stringify(parsed, null, 2) };
+  } catch { /* not JSON */ }
+
+  // 2. LangChain ToolMessage repr: content='...' name='tool' tool_call_id='...'
+  const lcMatch = trimmed.match(/^content='([\s\S]+?)'\s+name=/);
+  if (lcMatch) {
+    const inner = unescapeStr(lcMatch[1].replace(/\\'/g, "'"));
+    try {
+      const parsed = JSON.parse(inner);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const obj = parsed as Record<string, unknown>;
+        const content = obj['content'];
+        if (typeof content === 'string' && content.length > 150) {
+          const { content: _c, ...meta } = obj;
+          return { type: 'artifact', meta, content: unescapeStr(content) };
+        }
+      }
+      return { type: 'json', pretty: JSON.stringify(parsed, null, 2) };
+    } catch { /* not JSON */ }
+    return { type: 'text', text: inner };
+  }
+
+  // 3. 纯文本，解转义
+  return { type: 'text', text: unescapeStr(trimmed) };
+}
+
+function ContentBlock({ raw }: { raw: string }) {
+  const p = parseContent(raw);
+
+  if (p.type === 'artifact') {
+    return (
+      <div className="space-y-2">
+        {Object.keys(p.meta).length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(p.meta).map(([k, v]) => (
+              <span key={k} className="inline-flex items-center gap-1 text-[11px] bg-slate-100 border border-slate-200 rounded-md px-2 py-0.5">
+                <span className="text-slate-500 font-mono">{k}:</span>
+                <span className="text-slate-800 font-semibold">{String(v)}</span>
+              </span>
+            ))}
+          </div>
+        )}
+        <pre className="text-[12px] text-slate-800 whitespace-pre-wrap break-words font-mono bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-[36rem] overflow-y-auto leading-relaxed">
+          {p.content}
+        </pre>
+      </div>
+    );
+  }
+
+  if (p.type === 'json') {
+    return (
+      <pre className="text-[12px] text-slate-800 whitespace-pre-wrap break-all font-mono bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-64 overflow-y-auto leading-relaxed">
+        {p.pretty}
+      </pre>
+    );
+  }
+
+  return (
+    <pre className="text-[12px] text-slate-800 whitespace-pre-wrap break-words font-mono bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-64 overflow-y-auto leading-relaxed">
+      {p.text}
+    </pre>
+  );
+}
+
 // ── 单条日志卡片 ──────────────────────────────────────────────────────────────
 function LogCard({ entry }: { entry: ToolLogEntry }) {
   const [expanded, setExpanded] = useState(false);
@@ -80,17 +169,13 @@ function LogCard({ entry }: { entry: ToolLogEntry }) {
           {entry.input_str && (
             <div>
               <p className="text-[11px] text-slate-700 uppercase tracking-widest mb-1 font-semibold">输入</p>
-              <pre className="text-[12px] text-slate-800 whitespace-pre-wrap break-all font-mono bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-48 overflow-y-auto leading-relaxed">
-                {entry.input_str}
-              </pre>
+              <ContentBlock raw={entry.input_str} />
             </div>
           )}
           {entry.output_str ? (
             <div>
               <p className="text-[11px] text-slate-700 uppercase tracking-widest mb-1 font-semibold">输出</p>
-              <pre className="text-[12px] text-slate-800 whitespace-pre-wrap break-all font-mono bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-64 overflow-y-auto leading-relaxed">
-                {entry.output_str}
-              </pre>
+              <ContentBlock raw={entry.output_str} />
             </div>
           ) : (
             <p className="text-[12px] text-slate-600 italic">（尚无输出记录）</p>
