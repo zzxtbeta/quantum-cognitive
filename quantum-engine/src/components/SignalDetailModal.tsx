@@ -343,11 +343,7 @@ export default function SignalDetailModal({ signal, onClose, onOpenChat }: Signa
           })()}
 
           {/* 非论文类型展示摘要 */}
-          {signal.type !== '论文' && signal.summary && (
-            <Section label="事件摘要">
-              <p className="text-sm text-[var(--th-text)] leading-relaxed">{signal.summary}</p>
-            </Section>
-          )}
+          {signal.type !== '论文' && signal.summary && null}
 
           {/* Related Entities */}
           {(signal.relatedEntities.companies > 0 || signal.relatedEntities.people > 0 || signal.relatedEntities.technologies > 0) && (

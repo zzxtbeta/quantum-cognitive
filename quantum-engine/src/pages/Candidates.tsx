@@ -55,7 +55,9 @@ function CompanyCard({ company }: { company: GoldCompany }) {
               )}
             </div>
           </div>
-          <span className="text-[11px] text-slate-400 shrink-0 mt-0.5 font-mono">{company.establish_time ?? ''}</span>
+          <span className="text-[11px] text-slate-500 shrink-0 mt-0.5">
+            {company.establish_time ? `成立于 ${company.establish_time}` : ''}
+          </span>
         </div>
       </button>
 
@@ -103,6 +105,8 @@ export default function Candidates() {
   // 提交的搜索词（按Enter或点击搜索后生效）
   const [committedName, setCommittedName] = useState('');
 
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+
   const load = useCallback(async (filters: GoldCompanyFilters) => {
     setLoading(true);
     setError(null);
@@ -120,6 +124,13 @@ export default function Candidates() {
   useEffect(() => {
     load({ page, page_size: PAGE_SIZE, name: committedName || undefined, province: province || undefined, industry: industry || undefined, reg_status: regStatus || undefined });
   }, [page, committedName, province, industry, regStatus, load]);
+
+  // 前端按成立时间排序
+  const sortedItems = [...items].sort((a, b) => {
+    const ta = a.establish_time ?? '';
+    const tb = b.establish_time ?? '';
+    return sortOrder === 'desc' ? tb.localeCompare(ta) : ta.localeCompare(tb);
+  });
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -199,6 +210,14 @@ export default function Candidates() {
             <option value="注销">注销</option>
             <option value="吊销">吊销</option>
           </select>
+          <select
+            value={sortOrder}
+            onChange={e => setSortOrder(e.target.value as 'desc' | 'asc')}
+            className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[12px] text-slate-700 focus:outline-none focus:border-blue-400"
+          >
+            <option value="desc">成立时间 ↓ 新→旧</option>
+            <option value="asc">成立时间 ↑ 旧→新</option>
+          </select>
           {hasFilters && (
             <button
               onClick={clearFilters}
@@ -229,7 +248,7 @@ export default function Candidates() {
         </div>
       ) : (
         <div className="space-y-2">
-          {items.map(c => <CompanyCard key={c.id} company={c} />)}
+          {sortedItems.map(c => <CompanyCard key={c.id} company={c} />)}
         </div>
       )}
 
