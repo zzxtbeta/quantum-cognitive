@@ -69,6 +69,93 @@ def get_researcher_profile(name: str) -> str:
     return f"[人才库查询] name={name!r} — 暂未接入，请基于上下文推断"
 
 
+def search_gold_companies(
+    keyword: str = "",
+    province: str = "",
+    reg_status: str = "",
+    page: int = 1,
+    page_size: int = 10,
+) -> str:
+    """
+    搜索量子黄金公司库，查询量子赛道相关企业的工商信息。
+
+    适用场景：查找特定量子科技公司、按地区或注册状态筛选企业、了解某公司的
+    工商背景（注册资本、成立时间、法人、经营范围等）。
+
+    Args:
+        keyword:    公司名称关键词（模糊搜索），例如 '本源量子' 或 '国盾'；为空则不按名称过滤
+        province:   省份过滤，例如 '安徽' '北京' '上海'；为空则全国范围
+        reg_status: 注册状态过滤，常用值 '存续'（正常经营）、'注销'、'吊销'；为空则不过滤
+        page:       页码，默认 1
+        page_size:  每页条数，默认 10，最大 50
+    """
+    import httpx
+    from core.config import settings
+
+    params: dict = {"page": page, "page_size": min(page_size, 50)}
+    if keyword:
+        params["name"] = keyword
+    if province:
+        params["province"] = province
+    if reg_status:
+        params["reg_status"] = reg_status
+
+    try:
+        resp = httpx.get(
+            f"{settings.quantum_api_base_url}/api/gold/companies",
+            params=params,
+            headers={"X-API-Key": settings.quantum_api_key},
+            timeout=15.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except httpx.HTTPStatusError as e:
+        return f"ERROR: 公司库 API 返回 {e.response.status_code} — {e.response.text[:200]}"
+    except Exception as e:
+        return f"ERROR: 请求公司库失败 — {e}"
+
+    items = data.get("items") or data.get("data") or []
+    total = data.get("total", len(items))
+
+    if not items:
+        return f"未找到符合条件的公司（keyword={keyword!r}, province={province!r}, reg_status={reg_status!r}）。"
+
+    lines = [f"共找到 {total} 家公司，当前第 {page} 页（{len(items)} 条）：\n"]
+    for i, c in enumerate(items, 1):
+        name_line = c.get("name", "未知")
+        alias = c.get("alias", "")
+        city = c.get("city", "")
+        prov = c.get("province", "")
+        location = f"{prov}{city}".strip() or "未知"
+        status = c.get("reg_status", "")
+        legal = c.get("legal_person_name", "")
+        capital = c.get("reg_capital", "")
+        actual = c.get("actual_capital", "")
+        staff = c.get("social_staff_num", "")
+        est = c.get("establish_time", "")
+        scope = c.get("business_scope", "")
+        website = c.get("website", "")
+
+        entry = [f"{i}. **{name_line}**"]
+        if alias:
+            entry.append(f"   别名：{alias}")
+        entry.append(f"   地区：{location}  状态：{status}  法人：{legal}")
+        if capital or actual:
+            cap_info = f"注册资本：{capital}" + (f"  实缴：{actual}" if actual else "")
+            entry.append(f"   {cap_info}")
+        if staff and str(staff) not in ("0", ""):
+            entry.append(f"   社保人数：{staff} 人")
+        if est:
+            entry.append(f"   成立时间：{est}")
+        if scope:
+            entry.append(f"   经营范围：{scope[:120]}{'…' if len(scope) > 120 else ''}")
+        if website:
+            entry.append(f"   官网：{website}")
+        lines.append("\n".join(entry))
+
+    return "\n\n".join(lines)
+
+
 def save_skill(
     name: str,
     description: str,
@@ -300,6 +387,7 @@ def save_skill_reference(
 
 # 注册到 deepagents 的工具列表
 TOOLS = [
+    search_gold_companies,  # 量子黄金公司库查询
     save_skill,
     save_skill_reference,
     list_skills,
