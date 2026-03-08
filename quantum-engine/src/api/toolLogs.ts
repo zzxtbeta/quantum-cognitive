@@ -6,7 +6,7 @@ export interface ToolLogEntry {
   id: number;
   run_id: string;
   thread_id: string;
-  turn_id: string;
+  turn_id?: string;
   tool: string;
   label: string | null;
   input_str: string | null;
@@ -50,7 +50,12 @@ export function fetchToolLogs(params: {
   });
   const qs = search.toString();
   const url = `${CHAT_BASE}/deep/tool-logs${qs ? `?${qs}` : ''}`;
-  return getJson<{ logs: ToolLogEntry[] }>(url).then(r => r.logs);
+  return getJson<{ logs: ToolLogEntry[] }>(url).then(r =>
+    (r.logs || []).map(item => ({
+      ...item,
+      turn_id: item.turn_id || 'legacy',
+    }))
+  );
 }
 
 export function fetchToolLogSessions() {

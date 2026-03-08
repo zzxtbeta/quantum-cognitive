@@ -34,7 +34,8 @@ function shortId(id: string): string {
   return id.length > 14 ? id.slice(0, 10) + '…' + id.slice(-4) : id;
 }
 
-function turnLabel(turnId: string): string {
+function turnLabel(turnId?: string | null): string {
+  if (!turnId) return '回合 legacy';
   const t = turnId.replace(/^turn-/, '');
   return `回合 ${shortId(t)}`;
 }
