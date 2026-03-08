@@ -1,4 +1,4 @@
-"""研究成果缓存工具 — 将中间分析结果持久化为 Markdown 文件"""
+"""研究成果缓存工具 — 将最终报告持久化为 Markdown 文件，子 agent 中间成果仅记日志"""
 from __future__ import annotations
 
 import json
@@ -30,33 +30,64 @@ def save_research_artifact(
     overwrite: bool = False,
 ) -> str:
     """
-    记录研究成果元数据（内容已由工具调用日志系统持久化，无需额外写入磁盘）。
-    每个子Agent在完成分析后调用此工具，触发日志记录。
+    保存研究成果。最终报告类别（investment-report / general 等）写入磁盘；
+    子 Agent 的中间分析成果（paper-analysis / people-intel / market-intel）
+    仅记录到工具调用日志，不产生独立文件。
 
     Args:
-        filename: 成果名称，如 'quantum-computing-paper-analysis' '中国量子人才图谱'
-        content: Markdown 格式的分析内容（由工具日志系统自动捕获完整内容）
-        category: 分类标签，如 'paper-analysis' 'people-intel' 'market-intel' 'investment-report'
-        agent_name: 产出此成果的 Agent 名称，如 'paper-researcher' 'people-intel' 'news-market'
-        overwrite: 保留参数，兼容旧调用（已无实际效果）
+        filename: 成果名称，如 '量子计算云平台分析' 'quantum-computing-paper-analysis'
+        content: Markdown 格式的分析内容
+        category: 分类标签：
+            - 'investment-report' / 'general' → 写入磁盘（最终报告）
+            - 'paper-analysis' / 'people-intel' / 'market-intel' → 仅日志（中间成果）
+        agent_name: 产出此成果的 Agent 名称
+        overwrite: 同名文件是否覆盖（仅对写入磁盘的类别有效）
 
     Returns:
-        成功确认 JSON（内容已由工具日志系统持久化，可在工具日志界面查看完整报告）
+        成功确认 JSON，含保存路径（磁盘）或日志引用（中间成果）
     """
     safe_name = "".join(c if c.isalnum() or c in "-_. " else "_" for c in filename)
     safe_name = safe_name.strip().replace(" ", "-")
-    ref_name = f"{category}-{safe_name}-{datetime.now().strftime('%H%M%S')}.md"
+    ts = datetime.now().strftime("%H%M%S")
+    ref_name = f"{category}-{safe_name}-{ts}.md"
 
-    logger.info("[%s] 研究成果已记录到工具日志: %s (%d chars)", agent_name, ref_name, len(content))
+    # 子 agent 中间成果 → 只记日志，不写磁盘
+    _SUBAGENT_CATEGORIES = {"paper-analysis", "people-intel", "market-intel"}
+    if category in _SUBAGENT_CATEGORIES:
+        logger.info("[%s] 中间成果已记录到工具日志（不写磁盘）: %s (%d chars)",
+                    agent_name, ref_name, len(content))
+        return json.dumps({
+            "status": "logged",
+            "ref_name": ref_name,
+            "agent": agent_name,
+            "category": category,
+            "size_chars": len(content),
+            "note": "中间成果已由工具调用日志系统持久化，可在工具日志界面查看",
+        }, ensure_ascii=False)
 
-    return json.dumps({
-        "status": "logged",
-        "ref_name": ref_name,
-        "agent": agent_name,
-        "category": category,
-        "size_chars": len(content),
-        "note": "内容已由工具调用日志系统持久化，可在工具日志界面查询完整报告",
-    }, ensure_ascii=False)
+    # 最终报告 → 写入磁盘
+    daily_dir = _ensure_cache_dir()
+    filepath = daily_dir / ref_name
+    if filepath.exists() and not overwrite:
+        # 同名时在文件名中加毫秒后缀避免覆盖
+        ts_ms = datetime.now().strftime("%H%M%S%f")[:9]
+        ref_name = f"{category}-{safe_name}-{ts_ms}.md"
+        filepath = daily_dir / ref_name
+
+    try:
+        filepath.write_text(content, encoding="utf-8")
+        logger.info("[%s] 最终报告已写入磁盘: %s (%d chars)", agent_name, filepath, len(content))
+        return json.dumps({
+            "status": "saved",
+            "path": str(filepath),
+            "filename": ref_name,
+            "agent": agent_name,
+            "category": category,
+            "size_chars": len(content),
+        }, ensure_ascii=False)
+    except OSError as e:
+        logger.error("save_research_artifact 写入失败: %s", e)
+        return json.dumps({"status": "error", "error": str(e)}, ensure_ascii=False)
 
 
 def list_research_artifacts(
