@@ -1,6 +1,6 @@
 # 市场情报 — HTTP API 参考文档
 
-> **可移植说明**：本文档描述 `news-market` Skill 所依赖的数据接口。
+> **可移植说明**：本文档描述 `market-intel` Skill 所依赖的数据接口。
 > 包含内部新闻数据库 API（需认证）和 Tavily 实时搜索 API（需单独 key）。
 
 ---
@@ -208,8 +208,5 @@ result = client.search(
 |------------|---------|
 | `query_news_db(keyword, start_date, end_date, ...)` | `GET {base_url}/api/news` |
 | `semantic_search_news(query, top_k)` | `POST {base_url}/api/news/search` |
-| `search_quantum_news(query)` | Tavily `client.search(topic="news")` |
-| `search_quantum_funding(query)` | Tavily 搜索，针对融资关键词优化 |
-| `search_quantum_policy(query)` | Tavily 搜索，针对政策关键词优化 |
-| `search_quantum_companies(query)` | Tavily 搜索，针对公司动态优化 |
+| `search_news(query)` | Tavily `client.search(topic="news")` |
 | `save_research_artifact(...)` | 写入本地文件，不调用外部 HTTP API |

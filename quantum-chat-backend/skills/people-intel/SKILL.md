@@ -1,6 +1,6 @@
 ---
-name: quantum-people-intel
-description: 分析量子领域人才格局：关键科学家背景、机构研究实力对比、产业化信号识别、人才图谱梳理。当用户询问量子科学家背景、某机构团队实力、研究方向代表人物、创业团队尽调、某方向有没有值得追踪的人才时主动使用——包括"潘建伟团队在做什么"、"中科大量子计算有哪些PI"、"超导方向国内谁最厉害"、"XX公司创始人背景怎么样"等表述。
+name: people-intel
+description: 分析技术领域人才格局：关键科学家背景、机构研究实力对比、产业化信号识别、人才图谱梳理。当用户询问科学家背景、某机构团队实力、研究方向代表人物、创业团队尽调、某方向有没有值得追踪的人才时主动使用——包括"XX团队在做什么"、"某高校XX方向有哪些PI"、"某方向国内谁最厉害"、"XX公司创始人背景怎么样"等表述。
 scope: deep-research
 ---
 
@@ -39,7 +39,7 @@ scope: deep-research
 - 全过程工具调用目标控制在 8 次以内
 
 ---
-📖 **需要完整 HTTP API 参数时，调用 `get_skill_file('quantum-people-intel', 'references/api.md')` 获取。**
+📖 **需要完整 HTTP API 参数时，调用 `get_skill_file('people-intel', 'references/api.md')` 获取。**
 
 ---
 ## 人才价值评估参考

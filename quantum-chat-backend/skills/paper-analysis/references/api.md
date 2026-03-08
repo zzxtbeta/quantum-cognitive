@@ -1,6 +1,6 @@
 # 论文研究 — HTTP API 参考文档
 
-> **可移植说明**：本文档描述 `paper-research` Skill 所依赖的 HTTP API 原始接口。
+> **可移植说明**：本文档描述 `paper-analysis` Skill 所依赖的 HTTP API 原始接口。
 > 无论在哪个 Agent 框架中，只要能发起 HTTP 请求，即可直接调用。
 
 ---
@@ -22,23 +22,22 @@ Base URL: <QUANTUM_API_BASE_URL>   # 例如 http://47.110.226.140:8080
 
 ### `GET {base_url}/gold/domains`
 
-**用途**：获取完整领域分类树，用于确认 `domain_ids` 参数值。
+**用途**：获取完整领域分类树，用于确认 `domain_ids` 参数值。领域分类由数据平台动态维护（人工 + AI 协作标注），**不要在 Skill 文件中硬编码 domain_ids**，每次分析前先调用本接口获取当前实际分类。
 
 **请求参数**：无
 
-**响应示例**：
+**响应示例**（结构因数据库内容而异）：
 ```json
 [
-  { "id": 1,  "name": "量子计算" },
-  { "id": 10, "name": "超导量子计算" },
-  { "id": 11, "name": "离子阱量子计算" },
-  { "id": 12, "name": "光量子计算" },
-  { "id": 20, "name": "量子通信" },
-  { "id": 30, "name": "量子传感" }
+  { "id": 1,  "name": "领域大类A" },
+  { "id": 10, "name": "子领域A-1" },
+  { "id": 11, "name": "子领域A-2" },
+  { "id": 20, "name": "领域大类B" },
+  { "id": 30, "name": "领域大类C" }
 ]
 ```
 
-**使用建议**：分析前先调用一次，获取目标领域的 id，再传入 `/papers` 接口。
+**使用建议**：分析前先调用一次，获取目标方向的 id，再传入 `/papers` 接口。响应中每条记录的 `name` 字段即为可读的领域名称，直接使用。
 
 ---
 
@@ -122,18 +121,17 @@ Base URL: <QUANTUM_API_BASE_URL>   # 例如 http://47.110.226.140:8080
 # 全库最新论文
 GET {base_url}/papers?page_size=100&sort_by=publish_date&sort_order=desc
 
-# 超导领域近1年新论文
-GET {base_url}/papers?domain_ids=10&time_range=1y&sort_by=publish_date&page_size=50
+# 特定领域近1年新论文（domain_id 从 get_domain_tree() 获取）
+GET {base_url}/papers?domain_ids={id}&time_range=1y&sort_by=publish_date&page_size=50
 
 # 关键词专题检索
-GET {base_url}/papers?query=量子纠错&sort_by=publish_date&time_range=1y&page_size=50
+GET {base_url}/papers?query={关键词}&sort_by=publish_date&time_range=1y&page_size=50
 
 # 按作者姓名搜索（支持部分匹配）
-GET {base_url}/papers?author_name=潘建伟&sort_by=publish_date&page_size=30
-GET {base_url}/papers?domain_ids=10,11&author_name=Li&time_range=1y&page_size=50
+GET {base_url}/papers?author_name={姓名}&sort_by=publish_date&page_size=30
 
-# 多领域合并检索
-GET {base_url}/papers?domain_ids=10,11,12&query=保真度&page_size=80
+# 多领域合并检索（domain_ids 逗号分隔）
+GET {base_url}/papers?domain_ids={id1},{id2},{id3}&page_size=80
 
 # 带统计的全局概览
 GET {base_url}/papers?include_stats=true&page_size=50
@@ -153,7 +151,7 @@ GET {base_url}/papers?include_stats=true&page_size=50
 | `get_domain_tree()` | `GET {base_url}/gold/domains` |
 | `search_papers(query, domain_ids, time_range, ...)` | `GET {base_url}/papers`（单次调用） |
 | `batch_scan_papers(domain_ids, pages_to_scan, depth)` | 循环调用 `GET {base_url}/papers`（多页） |
-| `analyze_quantum_theme(theme, domain_ids)` | 先调用 `batch_scan_papers`，再做汇总分析 |
+| `analyze_theme(theme, domain_ids)` | 先调用 `batch_scan_papers`，再做汇总分析 |
 | `semantic_search_papers(query, top_k)` | `POST {base_url}/papers/search`（向量语义检索） |
 | `save_research_artifact(...)` | 写入本地文件，不调用外部 HTTP API |
 
