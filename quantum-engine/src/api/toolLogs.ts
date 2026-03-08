@@ -1,4 +1,6 @@
-import { apiClient } from './client';
+const CHAT_BASE = import.meta.env.DEV
+  ? '/chat-api'
+  : (import.meta.env.VITE_CHAT_BASE_URL || 'http://localhost:8001');
 
 export interface ToolLogEntry {
   id: number;
@@ -18,25 +20,36 @@ export interface ToolLogSession {
   call_count: number;
 }
 
+async function getJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 export function fetchToolLogs(params: {
   thread_id?: string;
   tool?: string;
   limit?: number;
   offset?: number;
 }) {
-  return apiClient
-    .get<{ logs: ToolLogEntry[] }>('/deep/tool-logs', params as Record<string, any>)
-    .then(r => r.logs);
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') search.append(k, String(v));
+  });
+  const qs = search.toString();
+  const url = `${CHAT_BASE}/deep/tool-logs${qs ? `?${qs}` : ''}`;
+  return getJson<{ logs: ToolLogEntry[] }>(url).then(r => r.logs);
 }
 
 export function fetchToolLogSessions() {
-  return apiClient
-    .get<{ sessions: ToolLogSession[] }>('/deep/tool-logs/sessions')
+  return getJson<{ sessions: ToolLogSession[] }>(`${CHAT_BASE}/deep/tool-logs/sessions`)
     .then(r => r.sessions);
 }
 
 export function fetchToolNames() {
-  return apiClient
-    .get<{ tools: string[] }>('/deep/tool-logs/tools')
+  return getJson<{ tools: string[] }>(`${CHAT_BASE}/deep/tool-logs/tools`)
     .then(r => r.tools);
 }

@@ -105,22 +105,27 @@ export default function ToolLogs() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const LIMIT = 50;
 
   const loadSessions = useCallback(async () => {
     setLoadingSessions(true);
+    setErrorMsg(null);
     try {
       const data = await fetchToolLogSessions();
       setSessions(data);
       const names = await fetchToolNames();
       setToolNames(names);
-    } catch { /* ignore */ } finally {
+    } catch (e: any) {
+      setErrorMsg(e?.message || '加载会话失败');
+    } finally {
       setLoadingSessions(false);
     }
   }, []);
 
   const loadLogs = useCallback(async (reset = true) => {
     setLoadingLogs(true);
+    setErrorMsg(null);
     const nextOffset = reset ? 0 : offset;
     try {
       const data = await fetchToolLogs({
@@ -132,7 +137,9 @@ export default function ToolLogs() {
       setLogs(prev => reset ? data : [...prev, ...data]);
       setOffset(nextOffset + data.length);
       setHasMore(data.length === LIMIT);
-    } catch { /* ignore */ } finally {
+    } catch (e: any) {
+      setErrorMsg(e?.message || '加载日志失败');
+    } finally {
       setLoadingLogs(false);
     }
   }, [selectedSession, selectedTool, offset]);
@@ -240,6 +247,12 @@ export default function ToolLogs() {
             刷新
           </button>
         </div>
+
+        {errorMsg && (
+          <div className="mb-3 px-3 py-2 text-[12px] rounded-lg border border-red-500/20 bg-red-500/10 text-red-300">
+            工具日志加载失败：{errorMsg}
+          </div>
+        )}
 
         {/* Log entries */}
         <div className="flex-1 overflow-y-auto space-y-2 pr-1">
