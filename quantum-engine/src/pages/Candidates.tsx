@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { Search, RefreshCw, Building2, MapPin, User, Briefcase, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, RefreshCw, Building2, MapPin, User, Briefcase, X, ChevronLeft, ChevronRight, Globe, Mail, Users } from 'lucide-react';
 import { fetchGoldCompanies } from '../api/companies';
 import { GoldCompany, GoldCompanyFilters } from '../types';
 
@@ -51,7 +51,15 @@ function CompanyCard({ company }: { company: GoldCompany }) {
                 </span>
               )}
               {company.reg_capital && (
-                <span className="text-slate-500">注册资本：{company.reg_capital}</span>
+                <span>注册 {company.reg_capital}</span>
+              )}
+              {company.actual_capital && (
+                <span>实缴 {company.actual_capital}</span>
+              )}
+              {company.social_staff_num != null && String(company.social_staff_num) !== '0' && (
+                <span className="flex items-center gap-1">
+                  <Users className="w-3 h-3 shrink-0" />{company.social_staff_num} 人
+                </span>
               )}
             </div>
           </div>
@@ -63,9 +71,13 @@ function CompanyCard({ company }: { company: GoldCompany }) {
 
       {expanded && (
         <div className="border-t border-slate-100 px-5 py-4 space-y-3 bg-slate-50/60 rounded-b-xl">
+          {/* 基本信息网格 */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[12px]">
+            {company.alias && (
+              <div className="col-span-2"><span className="text-slate-500">曾用名 </span><span className="text-slate-700">{company.alias}</span></div>
+            )}
             {company.credit_code && (
-              <div><span className="text-slate-500">统一社会信用代码 </span><span className="font-mono text-slate-700">{company.credit_code}</span></div>
+              <div className="col-span-2"><span className="text-slate-500">统一社会信用代码 </span><span className="font-mono text-slate-700">{company.credit_code}</span></div>
             )}
             {company.company_type && (
               <div><span className="text-slate-500">企业类型 </span><span className="text-slate-700">{company.company_type}</span></div>
@@ -73,10 +85,48 @@ function CompanyCard({ company }: { company: GoldCompany }) {
             {company.scale && (
               <div><span className="text-slate-500">规模 </span><span className="text-slate-700">{company.scale}</span></div>
             )}
+            {company.reg_capital && (
+              <div><span className="text-slate-500">注册资本 </span><span className="text-slate-700">{company.reg_capital}</span></div>
+            )}
+            {company.actual_capital && (
+              <div><span className="text-slate-500">实缴资本 </span><span className="text-slate-700">{company.actual_capital}</span></div>
+            )}
+            {company.social_staff_num != null && (
+              <div><span className="text-slate-500">员工人数 </span><span className="text-slate-700">{company.social_staff_num} 人</span></div>
+            )}
+            {company.establish_time && (
+              <div><span className="text-slate-500">成立日期 </span><span className="text-slate-700">{company.establish_time}</span></div>
+            )}
             {company.reg_location && (
               <div className="col-span-2"><span className="text-slate-500">注册地址 </span><span className="text-slate-700">{company.reg_location}</span></div>
             )}
           </div>
+          {/* 联系方式 */}
+          {(company.website || company.email) && (
+            <div className="flex flex-wrap gap-3">
+              {company.website && (
+                <a
+                  href={company.website.startsWith('http') ? company.website : `http://${company.website}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="inline-flex items-center gap-1.5 text-[12px] text-blue-600 hover:text-blue-700 hover:underline"
+                >
+                  <Globe className="w-3.5 h-3.5" />{company.website}
+                </a>
+              )}
+              {company.email && (
+                <a
+                  href={`mailto:${company.email}`}
+                  onClick={e => e.stopPropagation()}
+                  className="inline-flex items-center gap-1.5 text-[12px] text-slate-600 hover:text-slate-800 hover:underline"
+                >
+                  <Mail className="w-3.5 h-3.5" />{company.email}
+                </a>
+              )}
+            </div>
+          )}
+          {/* 经营范围 */}
           {company.business_scope && (
             <div>
               <p className="text-[11px] text-slate-500 uppercase tracking-widest mb-1">经营范围</p>
