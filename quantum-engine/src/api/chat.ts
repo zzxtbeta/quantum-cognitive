@@ -1,8 +1,6 @@
 // Chat/LLM相关 API —— LangGraph 后端（流式 SSE）
-
-const CHAT_BASE = import.meta.env.DEV
-  ? '/chat-api'
-  : (import.meta.env.VITE_CHAT_BASE_URL || 'http://localhost:8001');
+// 开发和生产都使用相对路径：开发由 Vite proxy、生产由 Vercel rewrite 转发到后端
+const CHAT_BASE = import.meta.env.VITE_CHAT_BASE_URL || '/chat-api';
 
 export interface StreamCallbacks {
   onToken: (token: string) => void;

@@ -3,6 +3,7 @@
   "outputDirectory": "quantum-engine/dist",
   "framework": null,
   "rewrites": [
+    { "source": "/chat-api/:path*", "destination": "http://47.110.226.140:8003/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

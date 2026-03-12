@@ -2,10 +2,8 @@
  * API 客户端 - 统一的HTTP请求封装
  */
 
-// 数据 API 通过后端 /data 代理，与 chat.ts 复用相同的后端地址
-const _BACKEND = import.meta.env.DEV
-  ? '/chat-api'
-  : (import.meta.env.VITE_CHAT_BASE_URL || 'http://localhost:8001');
+// 数据 API 通过后端 /data 代理，开发由 Vite proxy、生产由 Vercel rewrite 转发到后端
+const _BACKEND = import.meta.env.VITE_CHAT_BASE_URL || '/chat-api';
 
 export const API_BASE_URL = `${_BACKEND}/data`;
 export const useMock = import.meta.env.VITE_USE_MOCK_DATA === 'true';
