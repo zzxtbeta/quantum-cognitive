@@ -6,8 +6,8 @@
  *   QUANTUM_API_KEY      = xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK
  */
 module.exports = async function handler(req, res) {
-  const base = (process.env.QUANTUM_API_BASE_URL || 'https://www.gravaity.ai/datalake/api').replace(/\/$/, '');
-  const key  = process.env.QUANTUM_API_KEY || '';
+  const base = 'https://www.gravaity.ai/datalake/api';
+  const key  = 'xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK';
 
   // strip /api/data prefix, keep subpath + query string
   const subpath = req.url.replace(/^\/api\/data\/?/, '');
