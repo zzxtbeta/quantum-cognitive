@@ -5,11 +5,11 @@
  *   QUANTUM_API_BASE_URL = https://www.gravaity.ai/datalake/api
  *   QUANTUM_API_KEY      = xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK
  */
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const base = (process.env.QUANTUM_API_BASE_URL || 'https://www.gravaity.ai/datalake/api').replace(/\/$/, '');
   const key  = process.env.QUANTUM_API_KEY || '';
 
-  // req.url = "/api/data/gold/companies?page=1&page_size=20"
+  // strip /api/data prefix, keep subpath + query string
   const subpath = req.url.replace(/^\/api\/data\/?/, '');
   const target = `${base}/${subpath}`;
 
@@ -29,4 +29,4 @@ export default async function handler(req, res) {
     .status(upstream.status)
     .setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json')
     .send(body);
-}
+};
