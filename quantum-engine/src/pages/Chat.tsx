@@ -1,16 +1,9 @@
 ﻿import { useRef, useEffect, useState, useCallback } from 'react';
-import { Send, Sparkles, Trash2, Square, AlertCircle, CheckCircle2, Wrench, Zap, Copy, Check, History } from 'lucide-react';
-import { useChat, ChatMode, ThreadMeta } from '../hooks/useChat';
+import { Send, Trash2, Square, AlertCircle, CheckCircle2, Wrench, Zap, Copy, Check, History, X } from 'lucide-react';
+import { useChat, ThreadMeta } from '../hooks/useChat';
 import SkillsPanel from '../components/SkillsPanel';
 
 const QUICK_QUESTIONS = [
-  '超导量子计算目前的技术成熟度如何？',
-  '中国量子科技赛道有哪些头部机构？',
-  '量子纠错的主要技术路线对比？',
-  '量子通信产业化进展如何？',
-];
-
-const DEEP_QUICK_QUESTIONS = [
   '请对量子计算赛道做全面投资研判，包括技术、人才和市场三个维度',
   '分析中国超导量子计算领域的核心科学家和头部机构',
   '近期量子赛道有哪些主要融资事件和投资信号？',
@@ -250,8 +243,7 @@ function BackendStatus() {
 }
 
 export default function Chat() {
-  const [deepMode, setDeepMode] = useState<ChatMode>('chat');
-  const { messages, loading, error, threadId, activeSubagent, toolSteps, savedThreads, sendMessage, clearMessages, switchThread } = useChat(deepMode);
+  const { messages, loading, error, threadId, activeSubagent, toolSteps, savedThreads, sendMessage, clearMessages, cancelGeneration, switchThread, deleteThread } = useChat('deep');
   const [stepsExpanded, setStepsExpanded] = useState(false);
   const [input, setInput] = useState('');
   const [showSkills, setShowSkills] = useState(false);
@@ -259,10 +251,21 @@ export default function Chat() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
 
-  // 自动滚动到底部
+  // 滚动位置检测：用户向上滚动时暂停自动滚动
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }, []);
+
+  // 自动滚动到底部（仅当用户已在底部时）
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isAtBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   // textarea 自动伸缩
@@ -278,6 +281,7 @@ export default function Chat() {
     if (!text || loading) return;
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    isAtBottomRef.current = true; // 发送消息时强制滚到底
     sendMessage(text);
   }, [input, loading, sendMessage]);
 
@@ -289,6 +293,7 @@ export default function Chat() {
   };
 
   const handleQuickQuestion = (q: string) => {
+    isAtBottomRef.current = true; // 快速提问时强制滚到底
     sendMessage(q);
   };
 
@@ -308,11 +313,6 @@ export default function Chat() {
     return `${Math.floor(hours / 24)}天前`;
   }
 
-  const toggleMode = () => {
-    clearMessages();
-    setDeepMode(m => m === 'chat' ? 'deep' : 'chat');
-  };
-
   // 子Agent 名称映射
   const SUBAGENT_LABELS: Record<string, string> = {
     'paper-researcher': '📚 论文分析师分析中',
@@ -331,41 +331,19 @@ export default function Chat() {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2.5 mb-0.5">
-              <div className={`w-7 h-7 rounded-md flex items-center justify-center bg-gradient-to-br ${
-                deepMode === 'deep'
-                  ? 'from-violet-600 to-purple-600'
-                  : 'from-blue-600 to-indigo-600'
-              }`}>
-                {deepMode === 'deep'
-                  ? <Zap className="w-3.5 h-3.5 text-white" />
-                  : <Sparkles className="w-3.5 h-3.5 text-white" />}
+              <div className="w-7 h-7 rounded-md flex items-center justify-center bg-gradient-to-br from-violet-600 to-purple-600">
+                <Zap className="w-3.5 h-3.5 text-white" />
               </div>
               <h2 className="font-display text-xl text-shimmer tracking-widest">GRAVITY</h2>
-              {deepMode === 'deep' && (
-                <span className="text-[9px] font-semibold tracking-wider px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400 border border-violet-500/25">
-                  DEEP
-                </span>
-              )}
+              <span className="text-[9px] font-semibold tracking-wider px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400 border border-violet-500/25">
+                DEEP
+              </span>
             </div>
             <p className="text-xs text-[var(--th-text-muted)] pl-9">
-              {deepMode === 'deep' ? '深度研究 · 多子Agent · ' : '认知引擎 · '}
-              <BackendStatus />
+              深度研究 · 多子Agent · <BackendStatus />
             </p>
           </div>
           <div className="flex items-center gap-1.5">
-            {/* 深度模式切换 */}
-            <button
-              onClick={toggleMode}
-              title={deepMode === 'deep' ? '切换回普通对话模式' : '开启 DeepAgent 深度研究模式'}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-all text-[11px] font-medium border ${
-                deepMode === 'deep'
-                  ? 'bg-violet-500/15 text-violet-400 border-violet-500/30 hover:bg-violet-500/25'
-                  : 'bg-[var(--th-bg-hover)] text-[var(--th-text-muted)] border-[var(--th-divider)] hover:text-violet-400 hover:border-violet-500/30'
-              }`}
-            >
-              <Zap className="w-3 h-3" />
-              {deepMode === 'deep' ? 'Deep ON' : 'Deep'}
-            </button>
             {messages.length > 0 && (
               <button
                 onClick={clearMessages}
@@ -422,21 +400,32 @@ export default function Chat() {
               <p className="text-[11px] text-[var(--th-text-muted)] text-center py-8">暂无历史对话</p>
             ) : (
               savedThreads.map((meta: ThreadMeta) => (
-                <button
+                <div
                   key={meta.id}
-                  onClick={() => { switchThread(meta); setShowHistory(false); }}
-                  className={`w-full flex items-start gap-2 px-3.5 py-2.5 hover:bg-[var(--th-bg-hover)] transition-colors text-left ${
+                  className={`group/thread flex items-start gap-2 px-3.5 py-2.5 hover:bg-[var(--th-bg-hover)] transition-colors ${
                     meta.id === threadId ? 'bg-blue-500/8 border-l-2 border-blue-500' : ''
                   }`}
                 >
-                  <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded mt-0.5 shrink-0 ${
-                    meta.mode === 'deep' ? 'bg-violet-500/15 text-violet-400' : 'bg-blue-500/15 text-blue-400'
-                  }`}>
-                    {meta.mode === 'deep' ? 'DEEP' : 'CHAT'}
-                  </span>
-                  <span className="flex-1 text-[11px] text-[var(--th-text)] leading-snug line-clamp-2">{meta.title}</span>
-                  <span className="text-[9px] text-[var(--th-text-muted)] shrink-0 pt-0.5">{formatTimeAgo(meta.ts)}</span>
-                </button>
+                  <button
+                    onClick={() => { switchThread(meta); setShowHistory(false); }}
+                    className="flex-1 flex items-start gap-2 text-left min-w-0"
+                  >
+                    <span className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded mt-0.5 shrink-0 ${
+                      meta.mode === 'deep' ? 'bg-violet-500/15 text-violet-400' : 'bg-blue-500/15 text-blue-400'
+                    }`}>
+                      {meta.mode === 'deep' ? 'DEEP' : 'CHAT'}
+                    </span>
+                    <span className="flex-1 text-[11px] text-[var(--th-text)] leading-snug line-clamp-2 min-w-0">{meta.title}</span>
+                    <span className="text-[9px] text-[var(--th-text-muted)] shrink-0 pt-0.5">{formatTimeAgo(meta.ts)}</span>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteThread(meta); }}
+                    title="删除此记录"
+                    className="opacity-0 group-hover/thread:opacity-100 transition-opacity shrink-0 p-0.5 rounded hover:bg-red-500/15 text-[var(--th-text-muted)] hover:text-red-400 mt-0.5"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
               ))
             )}
           </div>
@@ -444,38 +433,28 @@ export default function Chat() {
       )}
 
       {/* ── Messages ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.length === 0 ? (
           <div className="pt-6">
             {/* 欢迎语 */}
             <div className="flex items-start gap-3 mb-6">
-              <div className={`w-7 h-7 rounded-md flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 mt-0.5 bg-gradient-to-br ${
-                deepMode === 'deep' ? 'from-violet-600 to-purple-600' : 'from-blue-600 to-indigo-600'
-              }`}>
+              <div className="w-7 h-7 rounded-md flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0 mt-0.5 bg-gradient-to-br from-violet-600 to-purple-600">
                 AI
               </div>
               <div className="flex-1 bg-[var(--th-bg-hover)] border border-[var(--th-divider)] rounded-xl px-4 py-3">
-                {deepMode === 'deep' ? (
-                  <p className="text-sm text-[var(--th-text)] leading-relaxed">
-                    已进入 <strong>深度研究模式</strong>（DeepAgent）。<br />
-                    我会调度三个专业子Agent ——
-                    📚<strong>论文分析师</strong>、👤<strong>人才情报师</strong>、📈<strong>市场情报师</strong>，
-                    综合技术、人才、市场三个维度生成量子赛道投资研判报告。
-                  </p>
-                ) : (
-                  <p className="text-sm text-[var(--th-text)] leading-relaxed">
-                    你好！我是 GRAVITY 认知引擎，基于 Qwen3.5 驱动。
-                    <br />可以问我量子科技赛道的技术、产业、投资等问题。
-                    <br />小提示：开启右上角“<span className="text-violet-400">Deep</span>”可调用多子Agent 深度研究模式。
-                  </p>
-                )}
+                <p className="text-sm text-[var(--th-text)] leading-relaxed">
+                  已进入 <strong>深度研究模式</strong>（DeepAgent）。<br />
+                  我会调度三个专业子Agent ——
+                  📚<strong>论文分析师</strong>、👤<strong>人才情报师</strong>、📈<strong>市场情报师</strong>，
+                  综合技术、人才、市场三个维度生成量子赛道投资研判报告。
+                </p>
               </div>
             </div>
 
             {/* 快速提问 */}
             <p className="text-[10px] text-[var(--th-text-muted)] uppercase tracking-widest mb-2 font-medium px-1">快速提问</p>
             <div className="grid grid-cols-2 gap-1.5">
-              {(deepMode === 'deep' ? DEEP_QUICK_QUESTIONS : QUICK_QUESTIONS).map(q => (
+              {QUICK_QUESTIONS.map(q => (
                 <button
                   key={q}
                   onClick={() => handleQuickQuestion(q)}
@@ -533,7 +512,7 @@ export default function Chat() {
             })}
 
             {/* DeepAgent 进度指示器 */}
-            {deepMode === 'deep' && loading && activeSubagent && (
+            {loading && activeSubagent && (
               <div className="flex flex-col gap-1.5 pl-8 animate-in fade-in duration-300">
                 <span className="inline-flex items-center gap-1.5 text-[11px] text-violet-400 bg-violet-500/10 border border-violet-500/20 rounded-full px-2.5 py-1 w-fit">
                   <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
@@ -543,7 +522,7 @@ export default function Chat() {
             )}
 
             {/* 工具调用历史（工具有记录时始终显示） */}
-            {deepMode === 'deep' && toolSteps.length > 0 && (
+            {toolSteps.length > 0 && (
               <div className="pl-8 animate-in fade-in duration-300">
                 <button
                   onClick={() => setStepsExpanded(v => !v)}
@@ -605,7 +584,7 @@ export default function Chat() {
             style={{ minHeight: '42px' }}
           />
           <button
-            onClick={loading ? clearMessages : handleSend}
+            onClick={loading ? cancelGeneration : handleSend}
             title={loading ? '停止' : '发送'}
             className={`flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg transition-all ${
               loading
@@ -619,7 +598,7 @@ export default function Chat() {
           </button>
         </div>
         <p className="text-[10px] text-[var(--th-text-muted)] mt-1.5">
-          {deepMode === 'deep' ? '🔬 DeepAgent 深度研究模式 · ' : 'Enter 发送 · Shift+Enter 换行 · '}
+          {'🔬 DeepAgent 深度研究模式 · '}
           thread: {threadId.slice(-6)}
         </p>
       </div>

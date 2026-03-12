@@ -132,30 +132,30 @@ export default function Layout() {
           <Outlet />
         </main>
 
-        {/* Chat Panel */}
+        {/* Resize Handle — 仅 Chat 打开时显示 */}
         {isChatOpen && (
-          <>
-            {/* Resize Handle */}
-            <div
-              ref={resizeRef}
-              onMouseDown={handleMouseDown}
-              className="w-px bg-[rgba(59,130,246,0.15)] hover:bg-blue-500/40 cursor-col-resize transition-colors flex-shrink-0 relative group"
-            >
-              <div className="absolute inset-y-0 -left-2 -right-2" />
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-16 bg-[rgba(59,130,246,0.25)] group-hover:bg-blue-400/60 rounded-full transition-colors" />
-            </div>
-
-            {/* Chat Content */}
-            <div
-              className="flex-shrink-0 h-[calc(100vh-4rem)] sticky top-16 relative z-10"
-              style={{ width: chatWidth }}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-            >
-              <Chat />
-            </div>
-          </>
+          <div
+            ref={resizeRef}
+            onMouseDown={handleMouseDown}
+            className="w-px bg-[rgba(59,130,246,0.15)] hover:bg-blue-500/40 cursor-col-resize transition-colors flex-shrink-0 relative group"
+          >
+            <div className="absolute inset-y-0 -left-3 -right-3" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-16 bg-[rgba(59,130,246,0.25)] group-hover:bg-blue-400/60 rounded-full transition-colors" />
+          </div>
         )}
+
+        {/* Chat Content — 始终挂载保持状态，通过 width/visibility 控制显隐 */}
+        <div
+          className="flex-shrink-0 h-[calc(100vh-4rem)] sticky top-16 relative z-10 overflow-hidden"
+          style={{
+            width: isChatOpen ? chatWidth : 0,
+            visibility: isChatOpen ? 'visible' : 'hidden',
+          }}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+        >
+          <Chat />
+        </div>
       </div>
     </div>
   );

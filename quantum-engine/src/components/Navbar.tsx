@@ -1,8 +1,9 @@
-import { Search, MessageSquare, ChevronDown, Cpu, Sun, Moon } from 'lucide-react';
-import { useState } from 'react';
+import { Search, MessageSquare, ChevronDown, Cpu, Sun, Moon, Bot, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLayout } from '../contexts/LayoutContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { getModels, switchModel, type ModelPreset } from '../api/chat';
 
 const tracks = [
   { id: 'quantum', name: '量子科技', status: 'active' },
@@ -21,6 +22,37 @@ export default function Navbar() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [activePreset, setActivePreset] = useState<string>('');
+  const [modelPresets, setModelPresets] = useState<Record<string, ModelPreset>>({});
+  const [modelSwitching, setModelSwitching] = useState(false);
+
+  useEffect(() => {
+    getModels()
+      .then(data => {
+        setActivePreset(data.active);
+        setModelPresets(data.presets);
+      })
+      .catch(() => {}); // backend 未运行时静默失败
+  }, []);
+
+  const handleModelSwitch = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const preset = e.target.value;
+    if (preset === activePreset || modelSwitching) return;
+    setModelSwitching(true);
+    try {
+      const result = await switchModel(preset);
+      setActivePreset(result.active);
+      setToastMessage(`模型已切换至 ${result.display_name}`);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    } catch {
+      setToastMessage('模型切换失败，请重试');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    } finally {
+      setModelSwitching(false);
+    }
+  };
 
   const handleTrackChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newTrack = e.target.value;
@@ -109,6 +141,37 @@ export default function Navbar() {
                 }}
               />
             </form>
+
+            {/* Model Switcher */}
+            {Object.keys(modelPresets).length > 0 && (
+              <div
+                className="relative flex items-center gap-1.5 border rounded-md px-2 py-1.5 transition-colors"
+                style={{
+                  background: 'var(--th-bg-input)',
+                  borderColor: 'var(--th-border)',
+                }}
+              >
+                <Bot className="w-3.5 h-3.5 text-[#8892aa] flex-shrink-0" />
+                <select
+                  value={activePreset}
+                  onChange={handleModelSwitch}
+                  disabled={modelSwitching}
+                  title="切换模型"
+                  className="bg-transparent border-none text-xs font-medium text-[#c8d4f0] cursor-pointer focus:outline-none appearance-none pr-5 hover:text-white transition-colors disabled:opacity-60 disabled:cursor-wait"
+                >
+                  {Object.entries(modelPresets).map(([key, p]) => (
+                    <option key={key} value={key} style={{ background: 'var(--th-bg-elevated)' }}>
+                      {p.display_name}
+                    </option>
+                  ))}
+                </select>
+                {modelSwitching ? (
+                  <Loader2 className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-blue-400 animate-spin pointer-events-none" />
+                ) : (
+                  <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#8892aa] pointer-events-none" />
+                )}
+              </div>
+            )}
 
             {/* Theme Toggle */}
             <button

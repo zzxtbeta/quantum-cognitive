@@ -56,8 +56,11 @@ _SUBAGENT_LABELS: dict[str, str] = {
 # ─── 工具友好名称映射（简化显示） ────────────────────────────────────────────────
 _TOOL_LABELS: dict[str, str] = {
     "batch_scan_papers": "扫描论文库",
+    "semantic_search_papers": "语义检索论文",
     "query_news_db": "查询新闻数据库",
     "semantic_search_news": "语义检索新闻",
+    "search_web": "搜索互联网",
+    "search_researchers": "检索研究人员",
     "search_quantum_news": "搜索量子新闻",
     "search_quantum_funding": "搜索融资信息",
     "search_quantum_policy": "搜索政策动向",
@@ -119,7 +122,8 @@ class _ProgressHandler(AsyncCallbackHandler):
         self._queue = queue
         self._thread_id = thread_id
         self._turn_id = turn_id
-        self._pending: dict[str, float] = {}  # run_id → monotonic start time
+        self._pending: dict[str, float] = {}       # tool run_id → monotonic start time
+        self._llm_starts: dict[str, float] = {}    # llm run_id → monotonic start time
 
     async def on_tool_start(
         self,
@@ -133,7 +137,9 @@ class _ProgressHandler(AsyncCallbackHandler):
         **kwargs: Any,
     ) -> None:
         tool_name = serialized.get("name", "unknown")
-        run_id_str = str(run_id) if run_id else "unknown"
+        # run_id=None 时生成唯一兜底 ID，防止多次调用互相覆盖
+        import uuid as _uuid
+        run_id_str = str(run_id) if run_id else f"fallback-{_uuid.uuid4()}"
         self._pending[run_id_str] = time.monotonic()
 
         label = _TOOL_LABELS.get(tool_name, tool_name)
@@ -190,6 +196,73 @@ class _ProgressHandler(AsyncCallbackHandler):
             pass
         await self._queue.put({"type": "step_done"})
 
+    async def on_tool_error(
+        self,
+        error: BaseException,
+        *,
+        run_id: Any = None,
+        parent_run_id: Any = None,
+        **kwargs: Any,
+    ) -> None:
+        """工具执行报错时补充 output_str，防止日志条目永久空白。"""
+        run_id_str = str(run_id) if run_id else "unknown"
+        start = self._pending.pop(run_id_str, None)
+        duration_ms = int((time.monotonic() - start) * 1000) if start is not None else 0
+        try:
+            from core.tool_log import log_end
+            log_end(run_id_str, f"[ERROR] {type(error).__name__}: {error}", duration_ms)
+        except Exception:
+            pass
+        await self._queue.put({"type": "step_done"})
+
+    async def on_llm_start(
+        self,
+        serialized: dict[str, Any],
+        prompts: list[str],
+        *,
+        run_id: Any = None,
+        **kwargs: Any,
+    ) -> None:
+        self._llm_starts[str(run_id) if run_id else "unknown"] = time.monotonic()
+
+    async def on_llm_end(
+        self,
+        response: Any,  # LLMResult
+        *,
+        run_id: Any = None,
+        **kwargs: Any,
+    ) -> None:
+        run_id_str = str(run_id) if run_id else "unknown"
+        start = self._llm_starts.pop(run_id_str, None)
+        duration_ms = int((time.monotonic() - start) * 1000) if start is not None else 0
+
+        tokens_prompt = tokens_completion = 0
+        model_name = ""
+        try:
+            lo = getattr(response, "llm_output", None) or {}
+            usage = lo.get("token_usage") or lo.get("usage") or {}
+            tokens_prompt = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+            tokens_completion = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+            model_name = str(lo.get("model_name", "") or lo.get("model", ""))
+            # Fallback: check generation's usage_metadata (LangChain ≥ 0.2)
+            if not tokens_prompt and getattr(response, "generations", None):
+                gen0 = response.generations[0]
+                if gen0:
+                    msg = getattr(gen0[0], "message", None)
+                    um = getattr(msg, "usage_metadata", None) or {}
+                    tokens_prompt = int(um.get("input_tokens") or 0)
+                    tokens_completion = int(um.get("output_tokens") or 0)
+        except Exception:
+            pass
+
+        if tokens_prompt or tokens_completion:
+            try:
+                from core.tool_log import log_llm_call
+                log_llm_call(run_id_str, self._thread_id, self._turn_id,
+                             model_name, tokens_prompt, tokens_completion, duration_ms)
+            except Exception:
+                pass
+
 
 # ─── SSE 生成器 ────────────────────────────────────────────────────────────────
 
@@ -227,14 +300,37 @@ async def _sse_stream(message: str, thread_id: str, turn_id: str) -> AsyncGenera
         input_payload["files"] = skill_files
 
     async def _run_agent() -> None:
+        # 保留生成器引用，以便在取消时显式 aclose()
+        astream_gen = agent.astream(
+            input_payload,
+            config=config,
+            stream_mode="messages",
+        )
         try:
-            async for chunk, metadata in agent.astream(
-                input_payload,
-                config=config,
-                stream_mode="messages",
-            ):
+            async for chunk, metadata in astream_gen:
                 if not isinstance(chunk, AIMessageChunk):
                     continue
+
+                # ── Token 统计：必须在 content 过滤前捕获 ──────────────────────
+                # 流式模式下 on_llm_end 可能不触发；最终 chunk 携带 usage_metadata
+                # 但 content 为空，若先 continue 则永远漏掉统计
+                um = getattr(chunk, "usage_metadata", None)
+                if um and (um.get("input_tokens") or um.get("output_tokens")):
+                    agent_name_tok = metadata.get("lc_agent_name", "quantum-orchestrator")
+                    try:
+                        import uuid as _uuid_mod
+                        from core.tool_log import log_llm_call as _log_llm
+                        _log_llm(
+                            f"stream-{_uuid_mod.uuid4().hex[:8]}",
+                            thread_id, turn_id,
+                            agent_name_tok,
+                            int(um.get("input_tokens", 0)),
+                            int(um.get("output_tokens", 0)),
+                            0,
+                        )
+                    except Exception:
+                        pass
+
                 if not chunk.content:
                     continue
                 if chunk.additional_kwargs.get("tool_calls"):
@@ -249,6 +345,13 @@ async def _sse_stream(message: str, thread_id: str, turn_id: str) -> AsyncGenera
                 })
         except asyncio.CancelledError:
             logger.info("DeepAgent 流被取消 thread_id=%s", thread_id)
+            # Python async for 遇到异常时不自动调 aclose()，需要显式关闭
+            # 这样 deepagents 内部用 create_task() 启动的子 agent 才能收到取消信号
+            try:
+                await astream_gen.aclose()
+                logger.info("DeepAgent 生成器已关闭 thread_id=%s", thread_id)
+            except Exception:
+                pass
         except Exception as e:
             logger.exception("DeepAgent 流异常 thread_id=%s: %s", thread_id, e)
             await event_queue.put({"type": "error", "content": str(e)})
@@ -345,14 +448,16 @@ async def deep_history(thread_id: str):
 
 @router.delete("/thread/{thread_id}")
 async def clear_deep_thread(thread_id: str):
-    """清空 DeepAgent 会话记忆"""
+    """清空 DeepAgent 会话记忆，同时删除对应工具调用日志"""
     agent = get_deep_agent()
     config = {"configurable": {"thread_id": thread_id}}
     try:
         await agent.aupdate_state(config, {"messages": []})
     except Exception:
         pass
-    return {"thread_id": thread_id, "cleared": True}
+    from core.tool_log import delete_thread_logs
+    deleted = delete_thread_logs(thread_id)
+    return {"thread_id": thread_id, "cleared": True, "tool_logs_deleted": deleted}
 
 
 # ─── 工具调用日志 API ────────────────────────────────────────────────────────────
@@ -378,11 +483,15 @@ async def get_tool_logs(
     tool: Optional[str] = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    after_id: Optional[int] = Query(None, ge=0),
 ):
-    """查询工具调用记录，支持按 thread_id / tool 过滤，按时间倒序。"""
+    """查询工具调用记录，支持按 thread_id / tool 过滤，按时间正序。
+    after_id: 如指定，只返回 id > after_id 的新条目（用于前端增量刷新）。
+    """
     from core.tool_log import query_logs
     return {
-        "logs": query_logs(thread_id=thread_id, turn_id=turn_id, tool=tool, limit=limit, offset=offset)
+        "logs": query_logs(thread_id=thread_id, turn_id=turn_id, tool=tool,
+                           limit=limit, offset=offset, after_id=after_id)
     }
 
 
@@ -391,3 +500,70 @@ async def get_tool_log_turns(thread_id: str, limit: int = Query(50, ge=1, le=200
     """获取某个 thread 下的回合列表。"""
     from core.tool_log import get_turns
     return {"turns": get_turns(thread_id=thread_id, limit=limit)}
+
+
+@router.delete("/tool-logs/session/{thread_id}")
+async def delete_tool_log_session(thread_id: str):
+    """删除指定 thread 的所有工具调用日志。"""
+    from core.tool_log import delete_thread_logs
+    deleted = delete_thread_logs(thread_id)
+    return {"thread_id": thread_id, "deleted": deleted}
+
+
+# ─── Knowledge Layer API ─────────────────────────────────────────────────────
+
+@router.get("/knowledge")
+async def list_knowledge_items(
+    category: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """列出知识条目（不含正文，节省带宽）。"""
+    from core.knowledge_store import list_knowledge
+    items = list_knowledge(category=category, limit=limit, offset=offset)
+    return {"items": items}
+
+
+@router.get("/knowledge/categories")
+async def get_knowledge_categories():
+    """按类别汇总条目数。"""
+    from core.knowledge_store import get_categories
+    return {"categories": get_categories()}
+
+
+@router.get("/knowledge/{item_id}")
+async def get_knowledge_item(item_id: int):
+    """获取单条知识详情（含正文）。"""
+    from core.knowledge_store import get_knowledge
+    item = get_knowledge(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Knowledge item not found")
+    return item
+
+
+@router.get("/knowledge/{item_id}/download")
+async def download_knowledge_item(item_id: int):
+    """下载知识条目为 Markdown 文件。"""
+    from core.knowledge_store import get_knowledge
+    item = get_knowledge(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Knowledge item not found")
+    filename = f"{item['category']}-{item['title']}.md"
+    # 安全处理文件名
+    safe_filename = "".join(c if c.isalnum() or c in "-_. " else "_" for c in filename)
+    from starlette.responses import Response
+    return Response(
+        content=item["content"],
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{safe_filename}"'},
+    )
+
+
+@router.delete("/knowledge/{item_id}")
+async def delete_knowledge_item(item_id: int):
+    """删除单条知识。"""
+    from core.knowledge_store import delete_knowledge
+    ok = delete_knowledge(item_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Knowledge item not found")
+    return {"deleted": True, "id": item_id}

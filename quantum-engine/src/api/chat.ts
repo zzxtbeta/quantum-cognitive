@@ -103,7 +103,11 @@ function _fetchSSE(
       }
       callbacks.onDone();
     } catch (err: any) {
-      if (err?.name !== 'AbortError') callbacks.onError(err?.message ?? 'Unknown error');
+      if (err?.name === 'AbortError') {
+        callbacks.onDone(); // ensure loading resets on manual abort
+      } else {
+        callbacks.onError(err?.message ?? 'Unknown error');
+      }
     }
   })();
 
@@ -127,6 +131,35 @@ export async function getDeepHistory(threadId: string) {
 /** 清空某个线程的历史 */
 export async function clearChatThread(threadId: string) {
   const res = await fetch(`${CHAT_BASE}/chat/thread/${threadId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// ── 模型管理 ────────────────────────────────────────────────────────────────
+
+export interface ModelPreset {
+  display_name: string;
+  model: string;
+}
+
+export interface ModelsResponse {
+  active: string;
+  active_model: string;
+  presets: Record<string, ModelPreset>;
+}
+
+export async function getModels(): Promise<ModelsResponse> {
+  const res = await fetch(`${CHAT_BASE}/models`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function switchModel(preset: string): Promise<{ active: string; model: string; display_name: string }> {
+  const res = await fetch(`${CHAT_BASE}/models/switch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ preset }),
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

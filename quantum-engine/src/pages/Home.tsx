@@ -30,13 +30,6 @@ const quickLinks = [
     color: 'from-amber-500 to-orange-500',
   },
   {
-    to: '/candidates',
-    icon: Target,
-    label: '候选标的',
-    desc: 'AI 推荐潜在投资标的',
-    color: 'from-blue-500 to-indigo-600',
-  },
-  {
     to: '/researchers',
     icon: Users,
     label: '人才库',
@@ -138,9 +131,8 @@ export default function Home() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard icon={Zap} value={totalSignals || '—'} label="信号总数" sub="论文 + 新闻实时同步" color="text-amber-400" />
-        <StatCard icon={Target} value={3} label="候选标的" sub="AI 推荐跟踪中" color="text-blue-400" />
         <StatCard icon={Star} value={focusItems.length} label="我的关注" sub="有 1 项近期更新" color="text-violet-400" />
         <StatCard icon={FileText} value={notes.length} label="研究笔记" sub="最近编辑 1 天前" color="text-emerald-400" />
       </div>

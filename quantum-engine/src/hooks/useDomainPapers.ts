@@ -28,7 +28,7 @@ export const useDomainPapers = (domainIds?: number[]) => {
           domain_ids: domainIds.join(','),
           page: 1,
           page_size: 200,
-          sort_by: 'publish_date',
+          sort_by: 'year',
           sort_order: 'desc',
         });
         

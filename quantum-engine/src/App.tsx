@@ -12,6 +12,7 @@ import MyFocus from './pages/MyFocus';
 import MyNotes from './pages/MyNotes';
 import Chat from './pages/Chat';
 import ToolLogs from './pages/ToolLogs';
+import Knowledge from './pages/Knowledge';
 
 function App() {
   return (
@@ -31,6 +32,7 @@ function App() {
                 <Route path="notes" element={<MyNotes />} />
                 <Route path="chat" element={<Chat />} />
                 <Route path="tool-logs" element={<ToolLogs />} />
+                <Route path="knowledge" element={<Knowledge />} />
               </Route>
             </Routes>
           </BrowserRouter>

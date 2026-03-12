@@ -13,6 +13,8 @@ export interface ToolLogEntry {
   output_str: string | null;
   duration_ms: number | null;
   ts: string;
+  tokens_prompt: number | null;
+  tokens_completion: number | null;
 }
 
 export interface ToolLogSession {
@@ -43,6 +45,7 @@ export function fetchToolLogs(params: {
   tool?: string;
   limit?: number;
   offset?: number;
+  after_id?: number;
 }) {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
@@ -72,4 +75,12 @@ export function fetchToolTurns(threadId: string) {
   const qs = new URLSearchParams({ thread_id: threadId }).toString();
   return getJson<{ turns: ToolLogTurn[] }>(`${CHAT_BASE}/deep/tool-logs/turns?${qs}`)
     .then(r => r.turns);
+}
+
+/** 删除指定 thread 的全部工具日志 */
+export async function deleteToolLogSession(threadId: string): Promise<number> {
+  const res = await fetch(`${CHAT_BASE}/deep/tool-logs/session/${encodeURIComponent(threadId)}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return data.deleted ?? 0;
 }

@@ -16,10 +16,51 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # ── LLM ─────────────────────────────────────────────────────────
+    # ── LLM Legacy（向后兼容，新代码优先用 model_presets）─────────────
     dashscope_api_key: str
     llm_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    llm_model: str = "qwen3.5-plus"
+    llm_model: str = "glm-5"
+
+    # ── 模型预设：GLM-5 ──────────────────────────────────────────────
+    glm5_api_key: str = ""
+    glm5_base_url: str = "https://coding.dashscope.aliyuncs.com/v1"
+    glm5_model: str = "glm-5"
+
+    # ── 模型预设：Qwen ───────────────────────────────────────────────
+    qwen_api_key: str = ""
+    qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    qwen_model: str = "qwen3.5-plus"
+
+    # ── 模型预设：Gemini（OpenAI-compatible）────────────────────────
+    gemini_api_key: str = ""
+    gemini_base_url: str = "https://llm.eulerai.au"
+    gemini_model: str = "gemini-3-flash-preview"
+
+    # ── 启动时默认 preset ────────────────────────────────────────────
+    active_llm: str = "glm-5"
+
+    @property
+    def model_presets(self) -> dict:
+        return {
+            "glm-5": {
+                "api_key": self.glm5_api_key or self.dashscope_api_key,
+                "base_url": self.glm5_base_url,
+                "model": self.glm5_model,
+                "display_name": "GLM-5",
+            },
+            "qwen": {
+                "api_key": self.qwen_api_key or self.dashscope_api_key,
+                "base_url": self.qwen_base_url,
+                "model": self.qwen_model,
+                "display_name": "Qwen3.5-Plus",
+            },
+            "gemini": {
+                "api_key": self.gemini_api_key,
+                "base_url": self.gemini_base_url,
+                "model": self.gemini_model,
+                "display_name": "Gemini Flash",
+            },
+        }
 
     # ── Tavily web search ────────────────────────────────────────────
     tavily_api_key: str = ""

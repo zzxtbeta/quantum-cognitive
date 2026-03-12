@@ -120,11 +120,14 @@ export const useChat = (mode: ChatMode = 'chat') => {
     setError(null);
     setActiveSubagent(null);
     setToolSteps([]);
+    // 立即生成新 thread_id，确保下一条消息开始新会话
+    const oldThreadId = threadId;
+    setThreadId(newThreadId());
     try {
       if (mode === 'deep') {
-        await clearDeepThread(threadId);
+        await clearDeepThread(oldThreadId);
       } else {
-        await clearChatThread(threadId);
+        await clearChatThread(oldThreadId);
       }
     } catch { /* 清除失败也没关系 */ }
   }, [threadId, mode]);
@@ -168,6 +171,32 @@ export const useChat = (mode: ChatMode = 'chat') => {
     } catch { /* 加载失败不影响使用 */ }
   }, []);
 
+  /** 删除某条历史记录（localStorage + 后端状态 + 工具日志），若删的是当前 thread 则重置 */
+  const deleteThread = useCallback(async (meta: ThreadMeta) => {
+    const updated = getStoredThreads().filter(t => t.id !== meta.id);
+    localStorage.setItem(THREADS_KEY, JSON.stringify(updated));
+    setSavedThreads(updated);
+    try {
+      await clearDeepThread(meta.id);
+    } catch { /* ignore */ }
+    if (meta.id === threadId) {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      setMessages([]);
+      setError(null);
+      setActiveSubagent(null);
+      setToolSteps([]);
+      setThreadId(newThreadId());
+    }
+  }, [threadId]);
+
+  /** 仅中断当前流式输出，保留已有消息（不清空 thread）。 */
+  const cancelGeneration = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    // loading will be reset via onDone callback triggered by AbortError handling in _fetchSSE
+  }, []);
+
   return {
     messages,
     loading,
@@ -178,8 +207,10 @@ export const useChat = (mode: ChatMode = 'chat') => {
     savedThreads,
     sendMessage,
     clearMessages,
+    cancelGeneration,
     loadHistory,
     switchThread,
+    deleteThread,
   };
 };
 

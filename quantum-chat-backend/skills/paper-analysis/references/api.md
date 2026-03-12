@@ -1,4 +1,4 @@
-# 论文研究 — HTTP API 参考文档
+﻿# 论文研究 — HTTP API 参考文档
 
 > **可移植说明**：本文档描述 `paper-analysis` Skill 所依赖的 HTTP API 原始接口。
 > 无论在哪个 Agent 框架中，只要能发起 HTTP 请求，即可直接调用。
@@ -7,176 +7,38 @@
 
 ## 认证
 
-所有请求需携带 API Key：
-
 ```
 Header: X-API-Key: <QUANTUM_API_KEY>
-Base URL: <QUANTUM_API_BASE_URL>   # 例如 http://47.110.226.140:8080
+Base URL: <QUANTUM_API_BASE_URL>   # 例如 https://www.gravaity.ai/datalake/api
 ```
 
 环境变量：`QUANTUM_API_BASE_URL`、`QUANTUM_API_KEY`
 
 ---
 
-## 接口 1：获取领域树
-
-### `GET {base_url}/gold/domains`
-
-**用途**：获取完整领域分类树，用于确认 `domain_ids` 参数值。领域分类由数据平台动态维护（人工 + AI 协作标注），**不要在 Skill 文件中硬编码 domain_ids**，每次分析前先调用本接口获取当前实际分类。
-
-**请求参数**：无
-
-**响应示例**（结构因数据库内容而异）：
-```json
-[
-  { "id": 1,  "name": "领域大类A" },
-  { "id": 10, "name": "子领域A-1" },
-  { "id": 11, "name": "子领域A-2" },
-  { "id": 20, "name": "领域大类B" },
-  { "id": 30, "name": "领域大类C" }
-]
-```
-
-**使用建议**：分析前先调用一次，获取目标方向的 id，再传入 `/papers` 接口。响应中每条记录的 `name` 字段即为可读的领域名称，直接使用。
-
----
-
-## 接口 2：检索论文
-
-### `GET {base_url}/papers`
-
-**用途**：关键词检索或全库扫描，支持多维度过滤和排序。
-
-### 请求参数
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `query` | string | 否 | 关键词，对标题/摘要/技术路线进行模糊搜索 |
-| `domain_ids` | string | 否 | 领域 ID，逗号分隔，OR 逻辑（如 `"10,11,12"`） |
-| `time_range` | string | 否 | 时间范围：`1y`（1年）/`6m`（6个月）/`3m`/`1m`，省略时不限时间 |
-| `author_name` | string | 否 | 作者姓名关键词，部分匹配（不区分大小写），可与其他参数组合使用 |
-| `page` | int | 否 | 页码，默认 1 |
-| `page_size` | int | 否 | 每页数量，**最大 200**，全库扫描建议 80-100 |
-| `sort_by` | string | 否 | 排序字段：`publish_date`（默认）/ `title` |
-| `sort_order` | string | 否 | 排序方向：`desc`（默认）/ `asc` |
-| `include_stats` | string | 否 | `"true"` 时在响应中附加统计汇总 |
-
-### 响应结构
-
-```json
-{
-  "total": 456,
-  "pages": 5,
-  "papers": [
-    {
-      "title": "Quantum Error Correction with Surface Codes",
-      "authors": [
-        { "name": "张三", "institution": "中国科学技术大学" }
-      ],
-      "publish_date": "2024-11-15",
-      "research_problem": {
-        "summary": "解决量子计算中的退相干问题",
-        "detail": "在超导量子比特上实现容错量子计算，要求逻辑错误率低于物理错误率..."
-      },
-      "tech_route": {
-        "summary": "表面码 + 超导量子比特",
-        "detail": "采用 rotated surface code 方案，利用最近邻耦合结构..."
-      },
-      "key_contributions": [
-        {
-          "summary": "实现 99.5% 保真度的双量子比特门",
-          "detail": "通过参数化微波脉冲优化，在 50 μs 相干时间内完成..."
-        }
-      ],
-      "domains": [
-        { "id": 10, "name": "超导量子计算" }
-      ],
-      "metrics": [
-        { "name": "fidelity",       "value": "99.5%" },
-        { "name": "qubit_count",    "value": "17" },
-        { "name": "coherence_time", "value": "50μs" }
-      ]
-    }
-  ],
-  "statistics": {
-    "domain_distribution": { "超导量子计算": 120, "离子阱": 80 },
-    "yearly_counts": { "2024": 95, "2023": 110 }
-  }
-}
-```
-
-### 字段说明
-
-| 字段 | 说明 |
-|------|------|
-| `research_problem.summary` | 1-2句简洁描述，适合快速浏览 |
-| `research_problem.detail` | 完整问题背景，适合深度分析 |
-| `tech_route.summary` | 技术路线关键词（用于分类统计） |
-| `tech_route.detail` | 完整技术方案描述 |
-| `metrics` | 关键指标数组，依论文而异（保真度/比特数/相干时间等） |
-
-### 典型调用示例
-
-```bash
-# 全库最新论文
-GET {base_url}/papers?page_size=100&sort_by=publish_date&sort_order=desc
-
-# 特定领域近1年新论文（domain_id 从 get_domain_tree() 获取）
-GET {base_url}/papers?domain_ids={id}&time_range=1y&sort_by=publish_date&page_size=50
-
-# 关键词专题检索
-GET {base_url}/papers?query={关键词}&sort_by=publish_date&time_range=1y&page_size=50
-
-# 按作者姓名搜索（支持部分匹配）
-GET {base_url}/papers?author_name={姓名}&sort_by=publish_date&page_size=30
-
-# 多领域合并检索（domain_ids 逗号分隔）
-GET {base_url}/papers?domain_ids={id1},{id2},{id3}&page_size=80
-
-# 带统计的全局概览
-GET {base_url}/papers?include_stats=true&page_size=50
-```
-
-### 分页策略
-
-第一次调用时检查响应中的 `total` 字段，再决定是否需要翻页。
-建议：`page_size=100`，先读前两页涉及最新或最相关始覆盖主要内容。
-
----
-
-## Python 工具对应关系
-
-| Python 工具 | 调用方式 |
-|------------|---------|
-| `get_domain_tree()` | `GET {base_url}/gold/domains` |
-| `search_papers(query, domain_ids, time_range, ...)` | `GET {base_url}/papers`（单次调用） |
-| `batch_scan_papers(domain_ids, pages_to_scan, depth)` | 循环调用 `GET {base_url}/papers`（多页） |
-| `analyze_theme(theme, domain_ids)` | 先调用 `batch_scan_papers`，再做汇总分析 |
-| `semantic_search_papers(query, top_k)` | `POST {base_url}/papers/search`（向量语义检索） |
-| `save_research_artifact(...)` | 子维度（paper-analysis/people-intel/market-intel）调用时仅记录日志，不写磁盘；最终报告由 investment-research 编排者以 category=`investment-report` 调用时才写磁盘 |
-
----
-
-## 接口 3：向量语义检索
+## 唯一接口：论文语义检索
 
 ### `POST {base_url}/papers/search`
 
-**用途**：基于句向量相似度检索，适用于自然语言描述的研究概念，支持中英文混合查询。
-当关键词检索（接口 2）结果 < 5 条，或用户描述的是概念而非精确词汇时，优先使用本接口。
+**用途**：基于句向量相似度检索量子赛道顶刊顶会论文，支持中英文跨语言查询。直接用自然语言描述研究概念即可，无需预先确认领域 ID。
 
 ### 请求 Body
 
 ```json
-{
-  "query": "玻色子量子准晶体中的低能激发态",
-  "top_k": 10
-}
+{"query": "超导量子比特纠错", "top_k": 10}
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `query` | string | 是 | 自然语言查询（中文/英文均可） |
-| `top_k` | int | 否 | 返回数量，默认 10，建议 5-20 |
+| `query` | string | 是 | 自然语言查询，中英文均可，越具体越好 |
+| `top_k` | int | 否 | 返回数量，默认 10，建议 5~15 |
+
+**多角度查询策略**：单次 `top_k=10` 覆盖有限，复杂主题建议用不同角度发起 3-5 次查询：
+- 中文专业术语（如"超导量子比特纠错"）
+- 英文对应表达（如"superconducting qubit error correction"）
+- 相关概念侧翼（如"surface code fault-tolerant threshold"）
+
+每次查询独立返回 10 条，合并去重后得到更全面的覆盖。
 
 ### 响应结构
 
@@ -184,23 +46,42 @@ GET {base_url}/papers?include_stats=true&page_size=50
 {
   "data": [
     {
-      "id": 3821,
-      "title": "Low-energy excitations in bosonic quantum quasicrystals",
-      "abstract": "We investigate the low-energy excitation spectrum...",
-      "authors": ["Zhang Wei", "Li Fang"],
-      "publish_date": "2024-11-08",
-      "domain_id": 12,
-      "citation_count": 14,
-      "score": 0.934
+      "id": 338,
+      "paper_id": 377,
+      "title": "Quantum Error Correction with Surface Codes",
+      "abstract": "We demonstrate fault-tolerant quantum computation...",
+      "authors": [
+        {"name": "张三", "affiliation": "中国科学技术大学"}
+      ],
+      "year": 2025,
+      "doi": "10.1103/h6b3-y4vt",
+      "venue_name": "Physical Review Letters",
+      "arxiv_id": "2406.19448v2",
+      "domain_ids": [5, 12],
+      "score": 0.502
     }
   ]
 }
 ```
 
+### 响应字段说明
+
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `score` | float (0-1) | 余弦相似度；>0.80 高度相关，>0.90 非常相关 |
-| 其余字段 | — | 与接口 2 `GET /papers` 返回字段一致 |
+| `score` | float | 语义相似度（0-1），>0.5 高度相关，<0.3 可能不相关 |
+| `title` | string | 论文标题 |
+| `abstract` | string | 摘要全文 |
+| `authors` | array | `[{"name": "...", "affiliation": "..."}]` |
+| `year` | int | 发表年份（整数，如 `2025`）；**无精确日期字段** |
+| `venue_name` | string | 期刊/会议名称 |
+| `doi` | string | DOI（可能为空） |
+| `arxiv_id` | string | arXiv ID（可能为空） |
+| `domain_ids` | array | 领域标签 ID 列表（整数） |
+
+**链接构造规则**：
+- `doi` 非空 → `https://doi.org/{doi}`（优先）
+- `doi` 为空但 `arxiv_id` 非空 → `https://arxiv.org/abs/{arxiv_id}`
+- 两者均为空 → 仅列 `venue_name` + `year`，**不构造任何链接**
 
 ### curl 示例
 
@@ -208,10 +89,14 @@ GET {base_url}/papers?include_stats=true&page_size=50
 curl -X POST "{base_url}/papers/search" \
   -H "X-API-Key: $QUANTUM_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"query": "玻色子量子准晶体中的低能激发态", "top_k": 10}'
+  -d '{"query": "超导量子比特纠错", "top_k": 10}'
 ```
 
-### 说明
+---
 
-- 仅检索已生成 embedding 的论文（高质量 `gold.papers`）
-- 与关键词检索互补：关键词检索精确匹配，语义检索发现相关但措辞不同的论文
+## Python 工具对应关系
+
+| Python 工具 | 调用方式 |
+|------------|---------|
+| `semantic_search_papers(query, top_k)` | `POST {base_url}/papers/search` |
+| `save_research_artifact(...)` | 子维度调用时仅记录日志；最终报告由 investment-research 编排者以 `category="investment-report"` 调用时写磁盘 |

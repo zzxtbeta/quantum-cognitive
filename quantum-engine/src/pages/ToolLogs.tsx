@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, Clock, RefreshCw, Filter, Inbox } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { ChevronDown, ChevronRight, Clock, RefreshCw, Filter, Inbox, Trash2 } from 'lucide-react';
 import {
   fetchToolLogs,
   fetchToolLogSessions,
   fetchToolNames,
   fetchToolTurns,
+  deleteToolLogSession,
   ToolLogEntry,
   ToolLogSession,
   ToolLogTurn,
@@ -132,7 +133,12 @@ function ContentBlock({ raw }: { raw: string }) {
 // ── 单条日志卡片 ──────────────────────────────────────────────────────────────
 function LogCard({ entry }: { entry: ToolLogEntry }) {
   const [expanded, setExpanded] = useState(false);
-  const color = toolColor(entry.tool);
+  const isLlm = entry.tool === '__llm__';
+  const color = isLlm
+    ? 'text-violet-800 bg-violet-100 border-violet-300'
+    : toolColor(entry.tool);
+
+  const tokenTotal = (entry.tokens_prompt ?? 0) + (entry.tokens_completion ?? 0);
 
   return (
     <div className="border border-slate-300 rounded-xl overflow-hidden bg-white/85 shadow-sm transition-all">
@@ -142,12 +148,19 @@ function LogCard({ entry }: { entry: ToolLogEntry }) {
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
       >
         <span className={`inline-flex items-center gap-1.5 text-[12px] border rounded-md px-2 py-0.5 font-mono shrink-0 ${color}`}>
-          🔧 {entry.label ?? entry.tool}
-        </span>
-        <span className="text-[12px] text-slate-700 shrink-0 font-mono opacity-90">
-          {entry.tool !== (entry.label ?? entry.tool) ? entry.tool : ''}
+          {isLlm ? '🤖' : '🔧'} {entry.label ?? entry.tool}
         </span>
         <span className="flex-1" />
+        {/* Token counts */}
+        {isLlm && tokenTotal > 0 && (
+          <span className="flex items-center gap-1 text-[11px] text-violet-700 font-mono shrink-0 mr-1">
+            <span title="输入 tokens">↑{(entry.tokens_prompt ?? 0).toLocaleString()}</span>
+            <span className="text-slate-400">/</span>
+            <span title="输出 tokens">↓{(entry.tokens_completion ?? 0).toLocaleString()}</span>
+            <span className="text-slate-400 ml-0.5">=</span>
+            <span className="font-semibold">{tokenTotal.toLocaleString()}</span>
+          </span>
+        )}
         <span className="text-[11px] text-slate-700 shrink-0 mr-3 font-mono">{turnLabel(entry.turn_id)}</span>
         {entry.duration_ms != null && (
           <span className="flex items-center gap-1 text-[12px] text-slate-700 shrink-0">
@@ -166,19 +179,36 @@ function LogCard({ entry }: { entry: ToolLogEntry }) {
       {/* Expandable detail */}
       {expanded && (
         <div className="border-t border-slate-200 px-4 py-3 space-y-3 bg-slate-50/80">
-          {entry.input_str && (
-            <div>
-              <p className="text-[11px] text-slate-700 uppercase tracking-widest mb-1 font-semibold">输入</p>
-              <ContentBlock raw={entry.input_str} />
-            </div>
-          )}
-          {entry.output_str ? (
-            <div>
-              <p className="text-[11px] text-slate-700 uppercase tracking-widest mb-1 font-semibold">输出</p>
-              <ContentBlock raw={entry.output_str} />
+          {isLlm ? (
+            <div className="flex flex-wrap gap-3 text-[12px] font-mono text-slate-700">
+              <span>↑ Prompt: <strong>{(entry.tokens_prompt ?? 0).toLocaleString()}</strong></span>
+              <span>↓ Completion: <strong>{(entry.tokens_completion ?? 0).toLocaleString()}</strong></span>
+              <span>Σ Total: <strong>{tokenTotal.toLocaleString()}</strong></span>
+              {entry.duration_ms != null && (
+                <span>⏱ {(entry.duration_ms / 1000).toFixed(2)}s  
+                  <span className="text-slate-500">
+                    ({Math.round((entry.tokens_completion ?? 0) / (entry.duration_ms / 1000))} tok/s)
+                  </span>
+                </span>
+              )}
             </div>
           ) : (
-            <p className="text-[12px] text-slate-600 italic">（尚无输出记录）</p>
+            <>
+              {entry.input_str && (
+                <div>
+                  <p className="text-[11px] text-slate-700 uppercase tracking-widest mb-1 font-semibold">输入</p>
+                  <ContentBlock raw={entry.input_str} />
+                </div>
+              )}
+              {entry.output_str ? (
+                <div>
+                  <p className="text-[11px] text-slate-700 uppercase tracking-widest mb-1 font-semibold">输出</p>
+                  <ContentBlock raw={entry.output_str} />
+                </div>
+              ) : (
+                <p className="text-[12px] text-slate-600 italic">（尚无输出记录）</p>
+              )}
+            </>
           )}
         </div>
       )}
@@ -202,6 +232,7 @@ export default function ToolLogs() {
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const lastIdRef = useRef<number>(0);   // 增量刷新用：记录已加载的最大 id
   const LIMIT = 50;
 
   const loadSessions = useCallback(async () => {
@@ -217,6 +248,14 @@ export default function ToolLogs() {
     } finally {
       setLoadingSessions(false);
     }
+  }, []);
+
+  /** 静默刷新会话计数，不计入加载态 */
+  const silentRefreshSessions = useCallback(async () => {
+    try {
+      const data = await fetchToolLogSessions();
+      setSessions(data);
+    } catch { /* ignore */ }
   }, []);
 
   const loadTurns = useCallback(async () => {
@@ -260,12 +299,33 @@ export default function ToolLogs() {
       setLogs(prev => reset ? data : [...prev, ...data]);
       setOffset(nextOffset + data.length);
       setHasMore(data.length === LIMIT);
+      if (reset && data.length > 0) {
+        lastIdRef.current = Math.max(...data.map(l => l.id));
+      }
     } catch (e: any) {
       setErrorMsg(e?.message || '加载日志失败');
     } finally {
       setLoadingLogs(false);
     }
   }, [selectedSession, selectedTurn, selectedTool, offset]);
+
+  /** 增量只拉取 id > lastIdRef 的条目，不重置滚动位置 */
+  const appendNewLogs = useCallback(async () => {
+    if (lastIdRef.current === 0) return;
+    try {
+      const newEntries = await fetchToolLogs({
+        thread_id: selectedSession ?? undefined,
+        turn_id: selectedTurn || undefined,
+        tool: selectedTool || undefined,
+        limit: LIMIT,
+        after_id: lastIdRef.current,
+      });
+      if (newEntries.length > 0) {
+        setLogs(prev => [...prev, ...newEntries]);
+        lastIdRef.current = Math.max(...newEntries.map(l => l.id));
+      }
+    } catch { /* 静默失败 */ }
+  }, [selectedSession, selectedTurn, selectedTool]);
 
   useEffect(() => {
     loadSessions();
@@ -285,12 +345,13 @@ export default function ToolLogs() {
   useEffect(() => {
     if (!autoRefresh) return;
     const timer = window.setInterval(() => {
-      loadSessions();
-      if (selectedSession && turnApiAvailable) loadTurns();
-      loadLogs(true);
-    }, 3000);
+      silentRefreshSessions();                                      // 静默更新会话计数
+      if (selectedSession && turnApiAvailable) loadTurns();         // 更新回合列表
+      appendNewLogs();                                              // 增量追加新的日志条目
+    }, 10000);  // 10s 轻量周期轮询
     return () => window.clearInterval(timer);
-  }, [autoRefresh, selectedSession, turnApiAvailable, loadSessions, loadTurns, loadLogs]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefresh, selectedSession, turnApiAvailable, silentRefreshSessions, loadTurns, appendNewLogs]);
 
   return (
     <div className="flex gap-5 h-[calc(100vh-8rem)]">
@@ -325,21 +386,43 @@ export default function ToolLogs() {
         ) : (
           <div className="flex flex-col gap-1 overflow-y-auto min-h-0">
             {sessions.map(s => (
-              <button
+              <div
                 key={s.thread_id}
-                onClick={() => setSelectedSession(s.thread_id)}
-                className={`flex flex-col items-start px-3 py-2 rounded-lg text-left transition-all border ${
+                className={`group flex items-center gap-1 rounded-lg transition-all border ${
                   selectedSession === s.thread_id
                     ? 'bg-blue-100 border-blue-300 text-blue-800'
                     : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-slate-300'
                 }`}
               >
-                <span className="font-mono text-[12px] truncate w-full">{shortId(s.thread_id)}</span>
-                <span className="text-[11px] opacity-85 flex gap-2 mt-0.5">
-                  <span>{s.call_count} 次</span>
-                  <span>{formatTs(s.last_activity)}</span>
-                </span>
-              </button>
+                <button
+                  onClick={() => setSelectedSession(s.thread_id)}
+                  className="flex-1 flex flex-col items-start px-3 py-2 text-left min-w-0"
+                >
+                  <span className="font-mono text-[12px] truncate w-full">{shortId(s.thread_id)}</span>
+                  <span className="text-[11px] opacity-85 flex gap-2 mt-0.5">
+                    <span>{s.call_count} 次</span>
+                    <span>{formatTs(s.last_activity)}</span>
+                  </span>
+                </button>
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!confirm(`删除此会话的所有工具日志？`)) return;
+                    try {
+                      await deleteToolLogSession(s.thread_id);
+                      setSessions(prev => prev.filter(x => x.thread_id !== s.thread_id));
+                      if (selectedSession === s.thread_id) {
+                        setSelectedSession(null);
+                        setLogs([]);
+                      }
+                    } catch { /* ignore */ }
+                  }}
+                  className="p-1.5 mr-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600 text-slate-400 transition-all shrink-0"
+                  title="删除此会话日志"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
             ))}
             {sessions.length === 0 && (
               <p className="text-[11px] text-slate-600 pl-2">暂无记录</p>
