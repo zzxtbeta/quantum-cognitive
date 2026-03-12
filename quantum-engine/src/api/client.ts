@@ -2,25 +2,25 @@
  * API 客户端 - 统一的HTTP请求封装
  */
 
-// 始终直接访问 HTTPS 后端（开发/生产统一）
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://www.gravaity.ai/datalake/api';
-export const API_KEY = import.meta.env.VITE_API_KEY || 'xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK';
+// 数据 API 通过后端 /data 代理，与 chat.ts 复用相同的后端地址
+const _BACKEND = import.meta.env.DEV
+  ? '/chat-api'
+  : (import.meta.env.VITE_CHAT_BASE_URL || 'http://localhost:8001');
+
+export const API_BASE_URL = `${_BACKEND}/data`;
 export const useMock = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
 class ApiClient {
   private baseUrl: string;
-  private apiKey: string;
 
-  constructor(baseUrl: string, apiKey: string) {
+  constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
-    this.apiKey = apiKey;
   }
 
   private getHeaders(): HeadersInit {
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'X-API-Key': this.apiKey,
     };
   }
 
@@ -69,4 +69,4 @@ class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient(API_BASE_URL, API_KEY);
+export const apiClient = new ApiClient(API_BASE_URL);

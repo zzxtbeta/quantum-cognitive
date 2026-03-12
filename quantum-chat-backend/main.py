@@ -23,7 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from core.config import settings
-from api import health_router, skills_router, deep_research_router
+from api import health_router, skills_router, deep_research_router, data_proxy_router
 from dagent import init_deep_agent
 
 # ─── 日志：每次启动写入 logs/YYYY-MM-DD_HH-MM-SS.log ──────────────────────────
@@ -66,7 +66,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -74,6 +74,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(skills_router)
 app.include_router(deep_research_router)
+app.include_router(data_proxy_router)
 
 
 @app.exception_handler(Exception)

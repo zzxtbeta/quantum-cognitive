@@ -5,7 +5,7 @@
 
 import { Researcher, ResearcherFilters, ResearcherListResponse, Institution, PeopleSearchResponse } from '../types/people';
 import { adaptApiItemToResearcher } from '../adapters/researcherAdapter';
-import { API_BASE_URL, API_KEY } from './client';
+import { API_BASE_URL } from './client';
 
 // 机构枚举 → API institution 关键词映射
 const INSTITUTION_KEYWORDS: Partial<Record<Institution, string>> = {
@@ -41,7 +41,7 @@ function buildSearchParams(filters: ResearcherFilters): URLSearchParams {
 
 async function fetchPeople(queryString: string): Promise<PeopleSearchResponse> {
   const res = await fetch(`${API_BASE_URL}/people/search?${queryString}`, {
-    headers: { Accept: 'application/json', 'X-API-Key': API_KEY },
+    headers: { Accept: 'application/json' },
   });
   if (!res.ok) throw new Error(`People API error: ${res.status} ${res.statusText}`);
   return res.json();
