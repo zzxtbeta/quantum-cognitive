@@ -2,10 +2,9 @@
  * API 客户端 - 统一的HTTP请求封装
  */
 
-// 数据 API 通过后端 /data 代理，开发由 Vite proxy、生产由 Vercel rewrite 转发到后端
-const _BACKEND = import.meta.env.VITE_CHAT_BASE_URL || '/chat-api';
-
-export const API_BASE_URL = `${_BACKEND}/data`;
+// 开发：Vite proxy /api 转发到后端
+// 生产(Vercel)：/api/data/* 由 Vercel Serverless Function 直接代理到 QUANTUM_API_BASE_URL
+export const API_BASE_URL = '/api/data';
 export const useMock = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
 class ApiClient {
