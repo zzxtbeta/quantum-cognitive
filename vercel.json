@@ -1,0 +1,8 @@
+{
+  "buildCommand": "cd quantum-engine && npm install && npm run build",
+  "outputDirectory": "quantum-engine/dist",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
