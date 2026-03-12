@@ -10,6 +10,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8001',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
       // Chat SSE 流式接口
       '/chat-api': {

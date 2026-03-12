@@ -1,15 +1,21 @@
 /**
- * Vercel Serverless Function: /api/data/* → QUANTUM_API_BASE_URL/*
+ * Vercel Serverless Function: /api/data/* → https://www.gravaity.ai/datalake/api/*
  *
- * 在 Vercel Dashboard 配置以下环境变量：
- *   QUANTUM_API_BASE_URL = https://www.gravaity.ai/datalake/api
- *   QUANTUM_API_KEY      = xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK
+ * Vercel routing order: serverless functions > rewrites
+ * So this function is ALWAYS called for /api/data/*, never intercepted by SPA rewrite.
+ *
+ * Request trace:
+ *   Browser GET /api/data/people/search?data_source=seed_data&page=1&page_size=20
+ *   → this function
+ *   → GET https://www.gravaity.ai/datalake/api/people/search?data_source=seed_data&page=1&page_size=20
+ *      with X-API-Key: xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK
  */
 module.exports = async function handler(req, res) {
-  const base = 'https://www.gravaity.ai/datalake/api';
-  const key  = 'xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK';
+  const base = (process.env.QUANTUM_API_BASE_URL || 'https://www.gravaity.ai/datalake/api').replace(/\/$/, '');
+  const key  = process.env.QUANTUM_API_KEY  || 'xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK';
 
-  // strip /api/data prefix, keep subpath + query string
+  // req.url = "/api/data/people/search?..."
+  // strip /api/data/ → "people/search?..."
   const subpath = req.url.replace(/^\/api\/data\/?/, '');
   const target = `${base}/${subpath}`;
 
@@ -30,3 +36,4 @@ module.exports = async function handler(req, res) {
     .setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json')
     .send(body);
 };
+
