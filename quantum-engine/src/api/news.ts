@@ -64,14 +64,14 @@ export const newsApi = {
     if (params.end_date) query.end_date = params.end_date;
     if (params.source) query.source = params.source;
 
-    return apiClient.get<NewsListResponse>('/api/news', query);
+    return apiClient.get<NewsListResponse>('/news', query);
   },
 
   /**
    * 向量语义检索新闻（自然语言查询）
    */
   semanticSearch: async (query: string, top_k = 10): Promise<NewsSearchResponse> => {
-    return apiClient.post<NewsSearchResponse>('/api/news/search', { query, top_k });
+    return apiClient.post<NewsSearchResponse>('/news/search', { query, top_k });
   },
 };
 

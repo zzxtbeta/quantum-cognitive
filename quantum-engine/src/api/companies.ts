@@ -22,7 +22,7 @@ export async function fetchGoldCompanies(
   if (filters.industry) params.industry = filters.industry;
   if (filters.reg_status) params.reg_status = filters.reg_status;
 
-  return apiClient.get<GoldCompanyListResponse>('/api/gold/companies', params);
+  return apiClient.get<GoldCompanyListResponse>('/gold/companies', params);
 }
 
 // 保留旧接口（其他页面依赖 companyApi.getCandidates / getCompanyById）

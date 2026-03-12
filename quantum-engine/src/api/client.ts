@@ -2,12 +2,9 @@
  * API 客户端 - 统一的HTTP请求封装
  */
 
-// 开发环境使用代理，生产环境直接访问
-const API_BASE_URL = import.meta.env.DEV 
-  ? '/api'  // 开发环境通过Vite代理
-  : (import.meta.env.VITE_API_BASE_URL || 'http://47.110.226.140:8080');
-
-const API_KEY = import.meta.env.VITE_API_KEY || 'xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK';
+// 始终直接访问 HTTPS 后端（开发/生产统一）
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://www.gravaity.ai/datalake/api';
+export const API_KEY = import.meta.env.VITE_API_KEY || 'xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK';
 export const useMock = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
 class ApiClient {
