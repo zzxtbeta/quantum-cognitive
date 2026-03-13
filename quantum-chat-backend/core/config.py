@@ -68,6 +68,16 @@ class Settings(BaseSettings):
     # ── 量子引擎数据 API（供 DeepAgent 工具层使用）────────────────────────
     quantum_api_base_url: str = "http://47.110.226.140:8080"
     quantum_api_key: str = "xK7mP9nQ2wR5tY8uI1oL4aS6dF3gH0jK"
+    # 路径可覆盖：用于适配不同网关转发规则（如 /datalake/api）
+    quantum_api_papers_path: str = "/papers"
+    quantum_api_papers_search_path: str = "/papers/search"
+    quantum_api_papers_search_method: str = "POST"
+    quantum_api_papers_sort_by: str = "year"
+    quantum_api_papers_sort_order: str = "desc"
+    quantum_api_papers_include_stats: bool = False
+    quantum_api_people_search_path: str = "/people/search"
+    quantum_api_news_path: str = "/news"
+    quantum_api_news_search_path: str = "/news/search"
 
     # ── Server ───────────────────────────────────────────────────────
     host: str = "0.0.0.0"

@@ -23,6 +23,18 @@ def _base_url() -> str:
     return base if base.endswith("/api") else f"{base}/api"
 
 
+def _papers_search_path() -> str:
+    from core.config import settings
+    path = (settings.quantum_api_papers_search_path or "/papers/search").strip()
+    return path if path.startswith("/") else f"/{path}"
+
+
+def _papers_method() -> str:
+    from core.config import settings
+    method = (settings.quantum_api_papers_search_method or "POST").strip().upper()
+    return method if method in {"GET", "POST"} else "POST"
+
+
 def semantic_search_papers(query: str, top_k: int = 10) -> str:
     """
     通过语义向量检索量子赛道顶刊顶会论文数据库，返回语义最相关的论文列表。
@@ -50,12 +62,30 @@ def semantic_search_papers(query: str, top_k: int = 10) -> str:
     if not query.strip():
         return "Error: query 不能为空"
     try:
-        resp = httpx.post(
-            f"{_base_url()}/papers/search",
-            json={"query": query, "top_k": top_k},
-            headers=_headers(),
-            timeout=30,
-        )
+        method = _papers_method()
+        if method == "GET":
+            from core.config import settings
+            params = {
+                "query": query,
+                "page": 1,
+                "page_size": top_k,
+                "sort_by": settings.quantum_api_papers_sort_by,
+                "sort_order": settings.quantum_api_papers_sort_order,
+                "include_stats": str(settings.quantum_api_papers_include_stats).lower(),
+            }
+            resp = httpx.get(
+                f"{_base_url()}{_papers_search_path()}",
+                params=params,
+                headers={"X-API-Key": _headers()["X-API-Key"]},
+                timeout=30,
+            )
+        else:
+            resp = httpx.post(
+                f"{_base_url()}{_papers_search_path()}",
+                json={"query": query, "top_k": top_k},
+                headers=_headers(),
+                timeout=30,
+            )
         resp.raise_for_status()
         data = resp.json()
         return json.dumps(data, ensure_ascii=False, indent=2)

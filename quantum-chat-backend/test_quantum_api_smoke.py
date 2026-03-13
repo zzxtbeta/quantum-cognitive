@@ -31,18 +31,46 @@ def _brief(obj: Any, max_len: int = 220) -> str:
     return text if len(text) <= max_len else text[:max_len] + "..."
 
 
-def test_papers(client: httpx.Client, base_url: str, headers: dict[str, str]) -> tuple[bool, str]:
-    payload = {"query": "超导量子比特纠错", "top_k": 2}
-    r = client.post(f"{base_url}/papers/search", headers=headers, json=payload)
+def _env_path(name: str, default: str) -> str:
+    raw = (os.getenv(name) or default).strip()
+    return raw if raw.startswith("/") else f"/{raw}"
+
+
+def test_papers(
+    client: httpx.Client,
+    base_url: str,
+    headers: dict[str, str],
+    papers_search_path: str,
+    papers_method: str,
+    papers_sort_by: str,
+    papers_sort_order: str,
+    papers_include_stats: str,
+) -> tuple[bool, str]:
+    if papers_method == "GET":
+        r = client.get(
+            f"{base_url}{papers_search_path}",
+            headers={"X-API-Key": headers["X-API-Key"]},
+            params={
+                "query": "超导量子比特纠错",
+                "page": 1,
+                "page_size": 2,
+                "sort_by": papers_sort_by,
+                "sort_order": papers_sort_order,
+                "include_stats": papers_include_stats,
+            },
+        )
+    else:
+        payload = {"query": "超导量子比特纠错", "top_k": 2}
+        r = client.post(f"{base_url}{papers_search_path}", headers=headers, json=payload)
     r.raise_for_status()
     data = r.json()
     sample = (data.get("data") or [{}])[0]
     return True, f"status={r.status_code}, sample={_brief({'title': sample.get('title'), 'doi': sample.get('doi'), 'arxiv_id': sample.get('arxiv_id')})}"
 
 
-def test_people(client: httpx.Client, base_url: str, headers: dict[str, str]) -> tuple[bool, str]:
+def test_people(client: httpx.Client, base_url: str, headers: dict[str, str], people_search_path: str) -> tuple[bool, str]:
     r = client.get(
-        f"{base_url}/people/search",
+        f"{base_url}{people_search_path}",
         headers={"X-API-Key": headers["X-API-Key"]},
         params={"name": "潘建伟", "page_size": 2},
     )
@@ -52,9 +80,9 @@ def test_people(client: httpx.Client, base_url: str, headers: dict[str, str]) ->
     return True, f"status={r.status_code}, sample={_brief({'name': sample.get('name'), 'institution': (sample.get('current_institution') or {}).get('standardized_name')})}"
 
 
-def test_news(client: httpx.Client, base_url: str, headers: dict[str, str]) -> tuple[bool, str]:
+def test_news(client: httpx.Client, base_url: str, headers: dict[str, str], news_search_path: str) -> tuple[bool, str]:
     payload = {"query": "本源量子融资", "top_k": 2}
-    r = client.post(f"{base_url}/news/search", headers=headers, json=payload)
+    r = client.post(f"{base_url}{news_search_path}", headers=headers, json=payload)
     r.raise_for_status()
     data = r.json()
     sample = (data.get("data") or [{}])[0]
@@ -74,13 +102,44 @@ def run() -> int:
 
     base_url = _normalize_base_url(base_raw)
     headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
+    papers_search_path = _env_path("QUANTUM_API_PAPERS_SEARCH_PATH", "/papers/search")
+    papers_method = (os.getenv("QUANTUM_API_PAPERS_SEARCH_METHOD") or "POST").strip().upper()
+    papers_method = papers_method if papers_method in {"GET", "POST"} else "POST"
+    papers_sort_by = (os.getenv("QUANTUM_API_PAPERS_SORT_BY") or "year").strip()
+    papers_sort_order = (os.getenv("QUANTUM_API_PAPERS_SORT_ORDER") or "desc").strip()
+    papers_include_stats = (os.getenv("QUANTUM_API_PAPERS_INCLUDE_STATS") or "false").strip().lower()
+    people_search_path = _env_path("QUANTUM_API_PEOPLE_SEARCH_PATH", "/people/search")
+    news_search_path = _env_path("QUANTUM_API_NEWS_SEARCH_PATH", "/news/search")
 
     print(f"[INFO] base_url = {base_url}")
+    print(
+        "[INFO] paths = "
+        f"papers_search={papers_search_path}, "
+        f"people_search={people_search_path}, "
+        f"news_search={news_search_path}"
+    )
+    print(
+        "[INFO] papers_mode = "
+        f"method={papers_method}, sort_by={papers_sort_by}, "
+        f"sort_order={papers_sort_order}, include_stats={papers_include_stats}"
+    )
 
     tests = [
-        ("papers/search", test_papers),
-        ("people/search", test_people),
-        ("news/search", test_news),
+        (
+            "papers/search",
+            lambda c, b, h: test_papers(
+                c,
+                b,
+                h,
+                papers_search_path,
+                papers_method,
+                papers_sort_by,
+                papers_sort_order,
+                papers_include_stats,
+            ),
+        ),
+        ("people/search", lambda c, b, h: test_people(c, b, h, people_search_path)),
+        ("news/search", lambda c, b, h: test_news(c, b, h, news_search_path)),
     ]
 
     failed = 0

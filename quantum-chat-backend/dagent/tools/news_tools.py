@@ -95,6 +95,18 @@ def _news_base_url() -> str:
     return base if base.endswith("/api") else f"{base}/api"
 
 
+def _news_path() -> str:
+    from core.config import settings
+    path = (settings.quantum_api_news_path or "/news").strip()
+    return path if path.startswith("/") else f"/{path}"
+
+
+def _news_search_path() -> str:
+    from core.config import settings
+    path = (settings.quantum_api_news_search_path or "/news/search").strip()
+    return path if path.startswith("/") else f"/{path}"
+
+
 def query_news_db(
     source: Optional[str] = None,
     start_date: Optional[str] = None,
@@ -129,7 +141,7 @@ def query_news_db(
         params["end_date"] = end_date
     try:
         resp = httpx.get(
-            f"{_news_base_url()}/news",
+            f"{_news_base_url()}{_news_path()}",
             params=params,
             headers=_news_headers(),
             timeout=20,
@@ -185,7 +197,7 @@ def semantic_search_news(query: str, top_k: int = 8) -> str:
         return "Error: query 不能为空"
     try:
         resp = httpx.post(
-            f"{_news_base_url()}/news/search",
+            f"{_news_base_url()}{_news_search_path()}",
             json={"query": query, "top_k": top_k},
             headers={**_news_headers(), "Content-Type": "application/json"},
             timeout=30,

@@ -24,6 +24,12 @@ def _base_url() -> str:
     return base if base.endswith("/api") else f"{base}/api"
 
 
+def _people_search_path() -> str:
+    from core.config import settings
+    path = (settings.quantum_api_people_search_path or "/people/search").strip()
+    return path if path.startswith("/") else f"/{path}"
+
+
 def search_researchers(
     institution: Optional[Union[str, List[str]]] = None,
     name: Optional[str] = None,
@@ -69,7 +75,7 @@ def search_researchers(
         params["name"] = name
     try:
         resp = httpx.get(
-            f"{_base_url()}/people/search",
+            f"{_base_url()}{_people_search_path()}",
             params=params,
             headers=_headers(),
             timeout=15,
