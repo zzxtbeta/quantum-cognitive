@@ -2,9 +2,9 @@
  * API 客户端 - 统一的HTTP请求封装
  */
 
-// 任何环境都优先走外部数据中台域名，不再使用 localhost 相对路径代理。
+// 生产环境默认走 Vercel Serverless 代理 /api/data，避免前端构建时环境变量缺失导致回退旧域名。
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'https://www.gravaity.ai/datalake/api';
+  import.meta.env.VITE_API_BASE_URL || '/api/data';
 export const useMock = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
 class ApiClient {
