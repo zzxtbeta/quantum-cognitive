@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { Search, RefreshCw, Building2, MapPin, User, Briefcase, X, ChevronLeft, ChevronRight, Globe, Mail, Users } from 'lucide-react';
-import { fetchGoldCompanies } from '../api/companies';
-import { GoldCompany, GoldCompanyFilters } from '../types';
+import { fetchCompanies } from '../api/companies';
+import { Company, CompanyFilters } from '../types';
 
 function StatusBadge({ status }: { status: string | null }) {
   if (!status) return null;
@@ -17,7 +17,7 @@ function StatusBadge({ status }: { status: string | null }) {
   );
 }
 
-function CompanyCard({ company }: { company: GoldCompany }) {
+function CompanyCard({ company }: { company: Company }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:border-slate-300 transition-all">
@@ -140,7 +140,7 @@ function CompanyCard({ company }: { company: GoldCompany }) {
 }
 
 export default function Candidates() {
-  const [items, setItems] = useState<GoldCompany[]>([]);
+  const [items, setItems] = useState<Company[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -157,11 +157,11 @@ export default function Candidates() {
 
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
-  const load = useCallback(async (filters: GoldCompanyFilters) => {
+  const load = useCallback(async (filters: CompanyFilters) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchGoldCompanies(filters);
+      const res = await fetchCompanies(filters);
       setItems(res.items);
       setTotal(res.total);
     } catch (e: any) {

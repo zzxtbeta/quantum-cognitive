@@ -22,13 +22,16 @@ Header: X-API-Key: <QUANTUM_API_KEY>
 Base URL: <QUANTUM_API_BASE_URL>
 ```
 
+> 路径规范：`base_url` 已包含 `/api`（例如 `https://www.gravaity.ai/datalake/api`），
+> 因此接口统一写为 `/news`、`/news/search`，不要再额外拼接 `/api` 前缀。
+
 Tavily（search_web 使用）：在 `.env` 中配置 `TAVILY_API_KEY`
 
 ---
 
 ## 接口 1：新闻语义搜索（**主要检索接口**）
 
-### `POST {base_url}/api/news/search`
+### `POST {base_url}/news/search`
 
 **用途**：基于语义向量检索，适用于所有关键词/概念性查询场景。这是大多数情况下的首选。
 
@@ -76,7 +79,7 @@ Tavily（search_web 使用）：在 `.env` 中配置 `TAVILY_API_KEY`
 
 ## 接口 2：新闻来源过滤检索（仅来源专项使用）
 
-### `GET {base_url}/api/news`
+### `GET {base_url}/news`
 
 **用途**：按指定来源公众号过滤新闻。
 
@@ -115,10 +118,10 @@ Tavily（search_web 使用）：在 `.env` 中配置 `TAVILY_API_KEY`
 
 ```bash
 # 查某公众号近期报道（来源专项场景）
-GET {base_url}/api/news?source=量子大观&page_size=30
+GET {base_url}/news?source=量子大观&page_size=30
 
 # 某来源指定时间段
-GET {base_url}/api/news?source=华夏时报&start_date=2025-01-01&end_date=2025-03-31
+GET {base_url}/news?source=华夏时报&start_date=2025-01-01&end_date=2025-03-31
 ```
 
 ---
@@ -170,7 +173,7 @@ search_web(
 
 | Python 工具 | 调用方式 |
 |------------|---------|
-| `query_news_db(source, start_date, end_date, page, page_size)` | `GET {base_url}/api/news` |
-| `semantic_search_news(query, top_k)` | `POST {base_url}/api/news/search` |
+| `query_news_db(source, start_date, end_date, page, page_size)` | `GET {base_url}/news` |
+| `semantic_search_news(query, top_k)` | `POST {base_url}/news/search` |
 | `search_web(query, topic, days, max_results)` | Tavily `client.search(topic=...)` |
 | `save_research_artifact(...)` | 子维度（paper-analysis/people-intel/market-intel）调用时仅记录日志，不写磁盘；最终报告由 investment-research 编排者以 category=`investment-report` 调用时才写磁盘 |

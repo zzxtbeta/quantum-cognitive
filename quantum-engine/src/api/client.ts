@@ -2,9 +2,9 @@
  * API 客户端 - 统一的HTTP请求封装
  */
 
-// 开发：Vite proxy /api 转发到后端
-// 生产(Vercel)：/api/data/* 由 Vercel Serverless Function 直接代理到 QUANTUM_API_BASE_URL
-export const API_BASE_URL = '/api/data';
+// 任何环境都优先走外部数据中台域名，不再使用 localhost 相对路径代理。
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || 'https://www.gravaity.ai/datalake/api';
 export const useMock = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
 class ApiClient {
@@ -15,10 +15,13 @@ class ApiClient {
   }
 
   private getHeaders(): HeadersInit {
-    return {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
+    const apiKey = import.meta.env.VITE_API_KEY;
+    if (apiKey) headers['X-API-Key'] = apiKey;
+    return headers;
   }
 
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {

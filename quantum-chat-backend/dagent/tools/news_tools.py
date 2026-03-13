@@ -88,7 +88,11 @@ def _news_headers() -> dict:
 
 def _news_base_url() -> str:
     from core.config import settings
-    return settings.quantum_api_base_url.rstrip("/")
+    # 兼容两种配置：
+    # 1) base 已包含 /api（推荐）
+    # 2) base 不含 /api（历史配置）
+    base = settings.quantum_api_base_url.rstrip("/")
+    return base if base.endswith("/api") else f"{base}/api"
 
 
 def query_news_db(
@@ -125,7 +129,7 @@ def query_news_db(
         params["end_date"] = end_date
     try:
         resp = httpx.get(
-            f"{_news_base_url()}/api/news",
+            f"{_news_base_url()}/news",
             params=params,
             headers=_news_headers(),
             timeout=20,
@@ -181,7 +185,7 @@ def semantic_search_news(query: str, top_k: int = 8) -> str:
         return "Error: query 不能为空"
     try:
         resp = httpx.post(
-            f"{_news_base_url()}/api/news/search",
+            f"{_news_base_url()}/news/search",
             json={"query": query, "top_k": top_k},
             headers={**_news_headers(), "Content-Type": "application/json"},
             timeout=30,

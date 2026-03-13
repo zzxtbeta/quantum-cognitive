@@ -23,9 +23,9 @@ export interface CandidateListResponse {
   candidates: Candidate[];
 }
 
-// ── Gold 层公司 ──────────────────────────────────────────────────────────────
+// ── 公司库数据模型 ────────────────────────────────────────────────────────────
 
-export interface GoldCompany {
+export interface Company {
   id: number;
   name: string;
   credit_code: string | null;
@@ -60,7 +60,7 @@ export interface GoldCompany {
   updated_at: string;
 }
 
-export interface GoldCompanyFilters {
+export interface CompanyFilters {
   page?: number;
   page_size?: number;
   name?: string;
@@ -70,9 +70,9 @@ export interface GoldCompanyFilters {
   reg_status?: string;
 }
 
-export interface GoldCompanyListResponse {
+export interface CompanyListResponse {
   total: number;
   page: number;
   page_size: number;
-  items: GoldCompany[];
+  items: Company[];
 }

@@ -40,8 +40,12 @@ function buildSearchParams(filters: ResearcherFilters): URLSearchParams {
 }
 
 async function fetchPeople(queryString: string): Promise<PeopleSearchResponse> {
+  const apiKey = import.meta.env.VITE_API_KEY;
   const res = await fetch(`${API_BASE_URL}/people/search?${queryString}`, {
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      ...(apiKey ? { 'X-API-Key': apiKey } : {}),
+    },
   });
   if (!res.ok) throw new Error(`People API error: ${res.status} ${res.statusText}`);
   return res.json();

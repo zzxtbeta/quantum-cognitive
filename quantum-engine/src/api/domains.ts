@@ -78,7 +78,7 @@ export const domainApi = {
     parent_id?: number;
     min_paper_count?: number;
   }): Promise<DomainsApiResponse | DomainNode[]> => {
-    return apiClient.get<DomainsApiResponse | DomainNode[]>('/gold/domains', params);
+    return apiClient.get<DomainsApiResponse | DomainNode[]>('/domains', params);
   },
 
   getDomainTree: async (): Promise<{ domains: TechNode[] }> => {

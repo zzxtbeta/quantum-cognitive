@@ -4,7 +4,17 @@
       "Bash(npm run build)",
       "Bash(python convert_parquet.py)",
       "Bash(python -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(f''Total: {len\\(data\\)}''\\); from collections import Counter; inst=Counter\\(r[''institution''] for r in data\\); print\\(''By institution:''\\); [print\\(f''  {k}: {v}''\\) for k,v in inst.most_common\\(\\)]\")",
-      "Bash(python -c \"import json; data=json.load\\(open\\(''people.json'', encoding=''utf-8''\\)\\); print\\(f''Total: {len\\(data\\)}''\\); print\\(''First:'', data[0][''name''], ''@'', data[0][''institutionRaw'']\\); print\\(''Last:'', data[-1][''name''], ''@'', data[-1][''institutionRaw'']\\)\")"
+      "Bash(python -c \"import json; data=json.load\\(open\\(''people.json'', encoding=''utf-8''\\)\\); print\\(f''Total: {len\\(data\\)}''\\); print\\(''First:'', data[0][''name''], ''@'', data[0][''institutionRaw'']\\); print\\(''Last:'', data[-1][''name''], ''@'', data[-1][''institutionRaw'']\\)\")",
+      "Bash(gh api:*)",
+      "Bash(gh repo:*)",
+      "Bash(powershell -Command \"$files = @\\('SKILL.md', 'LICENSE.txt', 'agents/analyzer.md', 'agents/comparator.md', 'agents/grader.md', 'assets/eval_review.html', 'eval-viewer/generate_review.py', 'eval-viewer/viewer.html', 'references/schemas.md', 'scripts/__init__.py', 'scripts/aggregate_benchmark.py', 'scripts/generate_report.py', 'scripts/improve_description.py', 'scripts/package_skill.py', 'scripts/quick_validate.py', 'scripts/run_eval.py', 'scripts/run_loop.py', 'scripts/utils.py'\\); foreach \\($f in $files\\) { $url = \\\\\"https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/$f\\\\\"; $out = \\\\\".kiro/skills/skill-creator/$f\\\\\"; Write-Host \\\\\"Downloading $f...\\\\\"; Invoke-WebRequest -Uri $url -OutFile $out }\")",
+      "Bash(curl -o \".kiro/skills/skill-creator/SKILL.md\" \"https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/SKILL.md\")",
+      "Bash(curl -o \".kiro/skills/skill-creator/LICENSE.txt\" \"https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/LICENSE.txt\")",
+      "Bash(curl -o \".kiro/skills/skill-creator/agents/analyzer.md\" \"https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/agents/analyzer.md\")",
+      "Bash(curl -o \".kiro/skills/skill-creator/agents/comparator.md\" \"https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/agents/comparator.md\")",
+      "Bash(curl -o \".kiro/skills/skill-creator/agents/grader.md\" \"https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/agents/grader.md\")",
+      "Bash(curl -o \".kiro/skills/skill-creator/assets/eval_review.html\" \"https://raw.githubusercontent.com/anthropics/skills/main/skills/skill-creator/assets/eval_review.html\")",
+      "Bash(claude /plugin marketplace add anthropics/skills)"
     ]
   }
 }

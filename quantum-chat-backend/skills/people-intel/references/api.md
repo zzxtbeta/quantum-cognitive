@@ -12,6 +12,8 @@ Header: X-API-Key: <QUANTUM_API_KEY>
 Base URL: <QUANTUM_API_BASE_URL>   # 例如 https://www.gravaity.ai/datalake/api
 ```
 
+> 路径规范：`base_url` 已包含 `/api`，接口统一写为 `/people/search`，不要再额外拼接 `/api`。
+
 环境变量：`QUANTUM_API_BASE_URL`、`QUANTUM_API_KEY`
 
 ---

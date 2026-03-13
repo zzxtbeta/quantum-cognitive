@@ -16,7 +16,11 @@ def _headers() -> dict:
 
 def _base_url() -> str:
     from core.config import settings
-    return settings.quantum_api_base_url.rstrip("/")
+    # 兼容两种配置：
+    # 1) base 已包含 /api（推荐）
+    # 2) base 不含 /api（历史配置）
+    base = settings.quantum_api_base_url.rstrip("/")
+    return base if base.endswith("/api") else f"{base}/api"
 
 
 def semantic_search_papers(query: str, top_k: int = 10) -> str:

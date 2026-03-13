@@ -1,17 +1,17 @@
-// 公司库 API — /api/gold/companies
+// 公司库 API — /companies
 
 import { apiClient } from './client';
-import type { GoldCompanyFilters, GoldCompanyListResponse } from '../types';
+import type { CompanyFilters, CompanyListResponse } from '../types';
 import { Candidate, CandidateFilters, CandidateListResponse } from '../types';
 
 /**
- * 查询 Gold 层公司列表
- * GET /api/gold/companies
+ * 查询公司列表
+ * GET /companies
  * 支持公司名/法人模糊匹配，省份/行业/登记状态精确筛选，分页
  */
-export async function fetchGoldCompanies(
-  filters: GoldCompanyFilters = {}
-): Promise<GoldCompanyListResponse> {
+export async function fetchCompanies(
+  filters: CompanyFilters = {}
+): Promise<CompanyListResponse> {
   const params: Record<string, any> = {
     page: filters.page ?? 1,
     page_size: filters.page_size ?? 20,
@@ -22,7 +22,7 @@ export async function fetchGoldCompanies(
   if (filters.industry) params.industry = filters.industry;
   if (filters.reg_status) params.reg_status = filters.reg_status;
 
-  return apiClient.get<GoldCompanyListResponse>('/gold/companies', params);
+  return apiClient.get<CompanyListResponse>('/companies', params);
 }
 
 // 保留旧接口（其他页面依赖 companyApi.getCandidates / getCompanyById）
