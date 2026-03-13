@@ -515,12 +515,20 @@ async def delete_tool_log_session(thread_id: str):
 @router.get("/knowledge")
 async def list_knowledge_items(
     category: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
     """列出知识条目（不含正文，节省带宽）。"""
     from core.knowledge_store import list_knowledge
-    items = list_knowledge(category=category, limit=limit, offset=offset)
+    items = list_knowledge(
+        category=category,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+        offset=offset,
+    )
     return {"items": items}
 
 

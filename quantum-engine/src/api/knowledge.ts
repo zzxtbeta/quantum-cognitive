@@ -32,6 +32,8 @@ async function getJson<T>(url: string): Promise<T> {
 
 export function fetchKnowledgeItems(params: {
   category?: string;
+  start_date?: string;
+  end_date?: string;
   limit?: number;
   offset?: number;
 }) {

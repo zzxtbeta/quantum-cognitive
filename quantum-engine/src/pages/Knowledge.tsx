@@ -173,6 +173,10 @@ export default function Knowledge() {
   const [items, setItems] = useState<KnowledgeItem[]>([]);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [draftStartDate, setDraftStartDate] = useState<string>('');
+  const [draftEndDate, setDraftEndDate] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [detailItem, setDetailItem] = useState<KnowledgeItem | null>(null);
@@ -184,7 +188,12 @@ export default function Knowledge() {
     try {
       const [cats, list] = await Promise.all([
         fetchKnowledgeCategories(),
-        fetchKnowledgeItems({ category: selectedCategory || undefined, limit: 100 }),
+        fetchKnowledgeItems({
+          category: selectedCategory || undefined,
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+          limit: 100,
+        }),
       ]);
       setCategories(cats);
       setItems(list);
@@ -193,7 +202,7 @@ export default function Knowledge() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory]);
+  }, [selectedCategory, startDate, endDate]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -219,6 +228,38 @@ export default function Knowledge() {
 
   const totalCount = categories.reduce((s, c) => s + c.count, 0);
 
+  // 前端兜底：即便后端未升级/参数未生效，日期筛选仍能立即可见。
+  const filteredItems = useMemo(() => {
+    if (!startDate && !endDate) return items;
+    return items.filter((item) => {
+      const day = (item.created_at || '').slice(0, 10);
+      if (startDate && day < startDate) return false;
+      if (endDate && day > endDate) return false;
+      return true;
+    });
+  }, [items, startDate, endDate]);
+
+  const applyDateFilter = useCallback(() => {
+    setStartDate(draftStartDate);
+    setEndDate(draftEndDate);
+  }, [draftStartDate, draftEndDate]);
+
+  const clearDateFilter = useCallback(() => {
+    setDraftStartDate('');
+    setDraftEndDate('');
+    setStartDate('');
+    setEndDate('');
+  }, []);
+
+  const setRecentDays = useCallback((days: number) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days + 1);
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    setDraftStartDate(fmt(start));
+    setDraftEndDate(fmt(end));
+  }, []);
+
   // ── 详情视图 ────────────────────────────────────────────────────────────
   if (detailItem) {
     return (
@@ -236,7 +277,8 @@ export default function Knowledge() {
         <h1 className="font-display text-4xl text-shimmer tracking-widest mb-1">KNOWLEDGE</h1>
         <p className="text-slate-700 text-sm">
           研究成果知识库
-          {totalCount > 0 && <span className="ml-2 text-blue-700 font-semibold">{totalCount} 条</span>}
+          {totalCount > 0 && <span className="ml-2 text-blue-700 font-semibold">总 {totalCount} 条</span>}
+          <span className="ml-2 text-fuchsia-700 font-semibold">当前 {filteredItems.length} 条</span>
         </p>
       </div>
 
@@ -265,6 +307,50 @@ export default function Knowledge() {
             {categoryLabel(c.category)} <span className="ml-1 font-mono">{c.count}</span>
           </button>
         ))}
+
+        <div className="ml-2 flex items-center gap-2 px-2 py-1.5 rounded-xl border border-slate-300 bg-white/80 shadow-sm">
+          <span className="text-[12px] text-slate-600">日期</span>
+          <button
+            onClick={() => setRecentDays(7)}
+            className="px-2 py-1 text-[11px] rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-slate-700"
+          >
+            近7天
+          </button>
+          <button
+            onClick={() => setRecentDays(30)}
+            className="px-2 py-1 text-[11px] rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-slate-700"
+          >
+            近30天
+          </button>
+          <input
+            type="date"
+            value={draftStartDate}
+            onChange={(e) => setDraftStartDate(e.target.value)}
+            className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-[12px] text-slate-800 focus:outline-none focus:border-blue-500"
+          />
+          <span className="text-[12px] text-slate-500">~</span>
+          <input
+            type="date"
+            value={draftEndDate}
+            onChange={(e) => setDraftEndDate(e.target.value)}
+            className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-[12px] text-slate-800 focus:outline-none focus:border-blue-500"
+          />
+          <button
+            onClick={applyDateFilter}
+            className="px-2 py-1 text-[12px] rounded-lg border border-blue-300 bg-blue-100 hover:bg-blue-200 text-blue-800"
+          >
+            应用
+          </button>
+          {(startDate || endDate || draftStartDate || draftEndDate) && (
+            <button
+              onClick={clearDateFilter}
+              className="px-2 py-1 text-[12px] rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700"
+            >
+              清除日期
+            </button>
+          )}
+        </div>
+
         <span className="flex-1" />
         <button
           onClick={loadData}
@@ -284,11 +370,11 @@ export default function Knowledge() {
 
       {/* Card grid */}
       <div className="flex-1 overflow-y-auto pr-1">
-        {loading && items.length === 0 ? (
+        {loading && filteredItems.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-slate-700 text-sm animate-pulse">
             加载中…
           </div>
-        ) : items.length === 0 ? (
+        ) : filteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-slate-700">
             <Inbox className="w-8 h-8 mb-2 opacity-70" />
             <p className="text-sm">暂无研究成果</p>
@@ -296,7 +382,7 @@ export default function Knowledge() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {items.map(item => (
+            {filteredItems.map(item => (
               <KnowledgeCard
                 key={item.id}
                 item={item}

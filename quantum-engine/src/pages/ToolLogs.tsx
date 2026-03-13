@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ChevronDown, ChevronRight, Clock, RefreshCw, Filter, Inbox, Trash2 } from 'lucide-react';
 import {
   fetchToolLogs,
@@ -39,6 +39,10 @@ function turnLabel(turnId?: string | null): string {
   if (!turnId) return '回合 legacy';
   const t = turnId.replace(/^turn-/, '');
   return `回合 ${shortId(t)}`;
+}
+
+function normalizeTurnId(turnId?: string | null): string {
+  return turnId && turnId.trim() ? turnId : 'legacy';
 }
 
 // ── 智能内容解析与渲染 ────────────────────────────────────────────────────────
@@ -232,8 +236,42 @@ export default function ToolLogs() {
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [collapsedTurns, setCollapsedTurns] = useState<Set<string>>(new Set());
   const lastIdRef = useRef<number>(0);   // 增量刷新用：记录已加载的最大 id
   const LIMIT = 50;
+
+  const visibleLogs = useMemo(() => {
+    if (!selectedTurn) return logs;
+    // 前端兜底过滤：即使后端 turn_id 过滤未生效，UI 也能按回合展示正确结果
+    return logs.filter(l => normalizeTurnId(l.turn_id) === selectedTurn);
+  }, [logs, selectedTurn]);
+
+  const groupedLogs = useMemo(() => {
+    const groups: Array<{ turnId: string; entries: ToolLogEntry[]; startedAt?: string; endedAt?: string }> = [];
+    const indexMap = new Map<string, number>();
+    for (const entry of visibleLogs) {
+      const tid = normalizeTurnId(entry.turn_id);
+      const idx = indexMap.get(tid);
+      if (idx == null) {
+        indexMap.set(tid, groups.length);
+        groups.push({ turnId: tid, entries: [entry], startedAt: entry.ts, endedAt: entry.ts });
+      } else {
+        const g = groups[idx];
+        g.entries.push(entry);
+        g.endedAt = entry.ts;
+      }
+    }
+    return groups;
+  }, [visibleLogs]);
+
+  const toggleTurnCollapse = useCallback((turnId: string) => {
+    setCollapsedTurns(prev => {
+      const next = new Set(prev);
+      if (next.has(turnId)) next.delete(turnId);
+      else next.add(turnId);
+      return next;
+    });
+  }, []);
 
   const loadSessions = useCallback(async () => {
     setLoadingSessions(true);
@@ -268,9 +306,7 @@ export default function ToolLogs() {
     try {
       const data = await fetchToolTurns(selectedSession);
       setTurns(data);
-      if (selectedTurn && !data.find(t => t.turn_id === selectedTurn)) {
-        setSelectedTurn('');
-      }
+      // 不在自动刷新时强制清空 selectedTurn，避免“筛选闪一下就失效”的体验。
     } catch (e: any) {
       const msg = String(e?.message || '');
       if (msg.includes('HTTP 404')) {
@@ -282,7 +318,7 @@ export default function ToolLogs() {
         setErrorMsg(e?.message || '加载回合失败');
       }
     }
-  }, [selectedSession, selectedTurn, turnApiAvailable]);
+  }, [selectedSession, turnApiAvailable]);
 
   const loadLogs = useCallback(async (reset = true) => {
     setLoadingLogs(true);
@@ -445,7 +481,7 @@ export default function ToolLogs() {
               <span className="ml-2 font-mono text-fuchsia-700 text-xs">· {turnLabel(selectedTurn)}</span>
             )}
             {logs.length > 0 && (
-              <span className="ml-2 text-blue-700 font-semibold">{logs.length} 条</span>
+              <span className="ml-2 text-blue-700 font-semibold">{visibleLogs.length} 条</span>
             )}
           </p>
         </div>
@@ -513,11 +549,11 @@ export default function ToolLogs() {
 
         {/* Log entries */}
         <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {loadingLogs && logs.length === 0 ? (
+          {loadingLogs && visibleLogs.length === 0 ? (
             <div className="flex items-center justify-center h-32 text-slate-700 text-sm animate-pulse">
               加载中…
             </div>
-          ) : logs.length === 0 ? (
+          ) : visibleLogs.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-slate-700">
               <Inbox className="w-8 h-8 mb-2 opacity-70" />
               <p className="text-sm">暂无工具调用记录</p>
@@ -525,7 +561,33 @@ export default function ToolLogs() {
             </div>
           ) : (
             <>
-              {logs.map(entry => <LogCard key={entry.id} entry={entry} />)}
+              {groupedLogs.map(group => (
+                <div key={group.turnId} className="space-y-2">
+                  <button
+                    onClick={() => toggleTurnCollapse(group.turnId)}
+                    className="sticky top-0 z-10 w-full bg-white/90 backdrop-blur border border-slate-200 rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-white transition-colors"
+                  >
+                    {collapsedTurns.has(group.turnId)
+                      ? <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                      : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+                    <span className="text-[11px] font-semibold text-fuchsia-800 bg-fuchsia-100 border border-fuchsia-300 rounded px-2 py-0.5">
+                      {turnLabel(group.turnId)}
+                    </span>
+                    <span className="text-[11px] text-slate-600">{group.entries.length} 条</span>
+                    {group.startedAt && (
+                      <span className="text-[11px] text-slate-500 font-mono">{formatTs(group.startedAt)}</span>
+                    )}
+                    {group.endedAt && group.endedAt !== group.startedAt && (
+                      <span className="text-[11px] text-slate-500 font-mono">~ {formatTs(group.endedAt)}</span>
+                    )}
+                  </button>
+                  {!collapsedTurns.has(group.turnId) && (
+                    <div className="space-y-2">
+                      {group.entries.map(entry => <LogCard key={entry.id} entry={entry} />)}
+                    </div>
+                  )}
+                </div>
+              ))}
               {hasMore && (
                 <button
                   onClick={() => loadLogs(false)}

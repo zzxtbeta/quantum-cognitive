@@ -90,6 +90,8 @@ def save_knowledge(
 
 def list_knowledge(
     category: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
 ) -> list[dict]:
@@ -99,6 +101,12 @@ def list_knowledge(
     if category:
         wheres.append("category = ?")
         params.append(category)
+    if start_date:
+        wheres.append("substr(created_at, 1, 10) >= ?")
+        params.append(start_date)
+    if end_date:
+        wheres.append("substr(created_at, 1, 10) <= ?")
+        params.append(end_date)
     sql = """SELECT id, thread_id, turn_id, agent_name, category, title,
                     size_chars, created_at, metadata
              FROM knowledge_items"""
