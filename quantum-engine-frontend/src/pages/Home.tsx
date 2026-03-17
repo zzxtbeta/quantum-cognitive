@@ -8,10 +8,10 @@ import {
   Building2,
   Clock,
   Database,
-  FileText,
   Flame,
   Layers,
   Newspaper,
+  Radar,
   Users,
   Zap,
 } from 'lucide-react';
@@ -20,7 +20,10 @@ import { signalApi } from '../api/signals';
 import { fetchCompanies } from '../api/companies';
 import { fetchKnowledgeCategories } from '../api/knowledge';
 import { newsApi } from '../api/news';
-import { fetchLatestCompanyPromotions, type EmergingCompanySignal } from '../api/companySignals';
+import {
+  EmergingCompanySignal,
+  fetchLatestCompanyPromotions,
+} from '../api/companySignals';
 import type { Signal } from '../types';
 
 const PRIORITY_TONE: Record<string, string> = {
@@ -34,50 +37,43 @@ const quickLinks = [
     to: '/signals',
     icon: Zap,
     label: '信号流',
-    desc: '实时追踪量子科技新闻、融资与技术动态',
+    desc: '实时追踪量子科技动态，查看论文、新闻与市场信号。',
     accent: 'from-amber-500 to-orange-500',
   },
   {
     to: '/candidates',
     icon: Building2,
     label: '公司库',
-    desc: '浏览量子赛道公司、区域分布与注册信息',
+    desc: '按公司名称、法人、省份、行业和状态筛选 Gold 层公司。',
     accent: 'from-blue-500 to-cyan-500',
   },
   {
     to: '/emerging-companies',
-    icon: Building2,
+    icon: Radar,
     label: '新玩家雷达',
-    desc: '近三个月注册且近期被报道的公司信号',
+    desc: '关注最近三个月注册且近期被报道的公司，发现早期 deal sourcing 线索。',
     accent: 'from-emerald-500 to-lime-500',
   },
   {
     to: '/researchers',
     icon: Users,
     label: '人才库',
-    desc: '追踪核心研究者、团队流动与机构关系',
+    desc: '追踪核心研究团队、PI 与产业化转化路径。',
     accent: 'from-violet-500 to-purple-600',
   },
   {
     to: '/knowledge',
     icon: Database,
     label: '知识库',
-    desc: '管理多 Agent 研究报告与沉淀文档',
+    desc: '按调研主题组织多 Agent 报告，方便回看和二次利用。',
     accent: 'from-emerald-500 to-teal-500',
   },
   {
     to: '/knowledge-map',
     icon: Layers,
     label: '知识地图',
-    desc: '从结构化视角理解技术脉络与实体关系',
+    desc: '查看技术路线、公司与研究主题之间的关联结构。',
     accent: 'from-teal-500 to-cyan-500',
-  },
-  {
-    to: '/notes',
-    icon: FileText,
-    label: '研究笔记',
-    desc: '查看个人笔记与投资判断沉淀',
-    accent: 'from-slate-500 to-slate-700',
   },
 ];
 
@@ -129,11 +125,7 @@ function StatCard({
 
 function EmergingSignalCard({ item }: { item: EmergingCompanySignal }) {
   return (
-    <button
-      onClick={() => window.open(item.latestNewsUrl || '', '_blank', 'noopener,noreferrer')}
-      disabled={!item.latestNewsUrl}
-      className="glass-card rounded-2xl p-4 text-left disabled:cursor-default"
-    >
+    <div className="glass-card rounded-2xl p-4 text-left">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-[#e0e8ff]">{item.companyName}</p>
@@ -142,27 +134,34 @@ function EmergingSignalCard({ item }: { item: EmergingCompanySignal }) {
           </p>
         </div>
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border border-emerald-300/30 bg-emerald-400/10 text-emerald-300">
-          {item.newsCount || 0} 条报道
+          {item.newsCount || 0} 篇报道
         </span>
       </div>
 
-      {item.latestNewsTitle && (
-        <p className="text-[12px] text-[#c8d4f0] mt-3 leading-relaxed line-clamp-2">
-          {item.latestNewsTitle}
-        </p>
-      )}
-
-      <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-[#8892aa]">
-        {item.promotedAt && <span>入库 {item.promotedAt.slice(0, 10)}</span>}
-        {item.latestNewsDate && (
-          <span className="flex items-center gap-1">
-            <Newspaper className="w-3 h-3" />
-            {item.latestNewsDate}
-          </span>
-        )}
-        {item.latestNewsSource && <span>{item.latestNewsSource}</span>}
+      <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-[#8892aa]">
+        {item.legalPersonName && <span>法人：{item.legalPersonName}</span>}
+        {item.industry && <span>行业：{item.industry}</span>}
+        {item.creditCode && <span className="truncate">信用代码：{item.creditCode}</span>}
       </div>
-    </button>
+
+      <div className="mt-3 space-y-2">
+        {item.newsItems.slice(0, 2).map((newsItem) => (
+          <a
+            key={newsItem.newsId}
+            href={newsItem.url || undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 transition-colors"
+          >
+            <div className="text-[12px] text-[#d7e3ff] line-clamp-2">{newsItem.title || '未命名报道'}</div>
+            <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-[#8892aa]">
+              {newsItem.source && <span>{newsItem.source}</span>}
+              {newsItem.publishedAt && <span>{newsItem.publishedAt}</span>}
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -170,17 +169,20 @@ export default function Home() {
   const navigate = useNavigate();
   const { focusItems, notes } = useAppContext();
   const [recentSignals, setRecentSignals] = useState<Signal[]>([]);
-  const [totalSignals, setTotalSignals] = useState(0);
+  const [signalAggregateTotal, setSignalAggregateTotal] = useState(0);
   const [companyTotal, setCompanyTotal] = useState<number | null>(null);
   const [newsTotal, setNewsTotal] = useState<number | null>(null);
   const [knowledgeTotal, setKnowledgeTotal] = useState<number | null>(null);
   const [emergingSignals, setEmergingSignals] = useState<EmergingCompanySignal[]>([]);
 
   useEffect(() => {
-    signalApi.getSignals({ type: '全部', page: 1, pageSize: 4 }).then((res) => {
-      setRecentSignals(res.signals.slice(0, 4));
-      setTotalSignals(res.total);
-    }).catch(() => {});
+    signalApi
+      .getSignals({ type: '全部', page: 1, pageSize: 4 })
+      .then((res) => {
+        setRecentSignals(res.signals.slice(0, 4));
+        setSignalAggregateTotal(res.total);
+      })
+      .catch(() => {});
 
     Promise.allSettled([
       fetchCompanies({ page: 1, page_size: 1 }),
@@ -199,14 +201,16 @@ export default function Home() {
     });
   }, []);
 
-  const dateLabel = useMemo(() => {
-    return new Date().toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      weekday: 'long',
-    });
-  }, []);
+  const dateLabel = useMemo(
+    () =>
+      new Date().toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long',
+      }),
+    [],
+  );
 
   return (
     <div className="animate-fade-up space-y-8">
@@ -230,16 +234,40 @@ export default function Home() {
       </section>
 
       <section className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard icon={Zap} value={totalSignals || '—'} label="信号总数" sub="论文与新闻信号统一入口" tone="amber" />
-        <StatCard icon={BookText} value={knowledgeTotal ?? '—'} label="知识库文档" sub="多 Agent 报告与沉淀文档" tone="emerald" />
-        <StatCard icon={Building2} value={companyTotal ?? '—'} label="公司库企业" sub="Gold 层公司记录" tone="blue" />
-        <StatCard icon={Newspaper} value={newsTotal ?? '—'} label="新闻库条目" sub="可按来源与时间组合检索" tone="violet" />
+        <StatCard
+          icon={Zap}
+          value={signalAggregateTotal || '...'}
+          label="聚合信号"
+          sub="论文与新闻的混合追踪口径，不等同于新闻总量"
+          tone="amber"
+        />
+        <StatCard
+          icon={BookText}
+          value={knowledgeTotal ?? '...'}
+          label="知识库文档"
+          sub="按调研主题沉淀的多 Agent 研究文档"
+          tone="emerald"
+        />
+        <StatCard
+          icon={Building2}
+          value={companyTotal ?? '...'}
+          label="公司库企业"
+          sub="Gold 层公司记录"
+          tone="blue"
+        />
+        <StatCard
+          icon={Newspaper}
+          value={newsTotal ?? '...'}
+          label="新闻库条目"
+          sub="新闻检索主入口口径，可按来源与时间筛选"
+          tone="violet"
+        />
       </section>
 
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-[#c8d4f0] flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-emerald-400" />
+            <Radar className="w-4 h-4 text-emerald-400" />
             新玩家雷达
           </h2>
           <button
@@ -257,7 +285,7 @@ export default function Home() {
           </div>
         ) : (
           <div className="glass-card rounded-2xl p-5 text-sm text-[#8892aa]">
-            暂无可展示的新玩家信号。
+            暂无最新新玩家雷达信号。
           </div>
         )}
       </section>
@@ -323,7 +351,9 @@ export default function Home() {
               <div className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${accent} flex items-center justify-center mb-3`}>
                 <Icon className="w-4.5 h-4.5 text-white" />
               </div>
-              <p className="text-sm font-semibold text-[#e0e8ff] mb-1 group-hover:text-blue-300 transition-colors">{label}</p>
+              <p className="text-sm font-semibold text-[#e0e8ff] mb-1 group-hover:text-blue-300 transition-colors">
+                {label}
+              </p>
               <p className="text-[11px] text-[#8892aa] leading-snug">{desc}</p>
             </button>
           ))}
@@ -334,7 +364,7 @@ export default function Home() {
         <div className="glass-card rounded-2xl p-5">
           <p className="text-[11px] uppercase tracking-[0.2em] text-[#8892aa] mb-2">我的关注</p>
           <p className="text-2xl font-bold text-[#e0e8ff]">{focusItems.length}</p>
-          <p className="text-[12px] text-[#8892aa] mt-1">个人跟踪标的与提醒列表</p>
+          <p className="text-[12px] text-[#8892aa] mt-1">个人关注列表与提醒</p>
         </div>
         <div className="glass-card rounded-2xl p-5">
           <p className="text-[11px] uppercase tracking-[0.2em] text-[#8892aa] mb-2">研究笔记</p>
@@ -344,9 +374,9 @@ export default function Home() {
           </p>
         </div>
         <div className="glass-card rounded-2xl p-5">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-[#8892aa] mb-2">知识沉淀</p>
-          <p className="text-2xl font-bold text-[#e0e8ff]">{knowledgeTotal ?? '—'}</p>
-          <p className="text-[12px] text-[#8892aa] mt-1">从调研过程直接沉淀成可复用报告</p>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-[#8892aa] mb-2">知识库沉淀</p>
+          <p className="text-2xl font-bold text-[#e0e8ff]">{knowledgeTotal ?? '...'}</p>
+          <p className="text-[12px] text-[#8892aa] mt-1">支持按调研主题查看投研成果</p>
         </div>
       </section>
     </div>

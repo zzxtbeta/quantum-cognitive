@@ -2,6 +2,14 @@ const CHAT_BASE = import.meta.env.DEV
   ? '/chat-api'
   : (import.meta.env.VITE_CHAT_BASE_URL || 'http://localhost:8001');
 
+export interface KnowledgeMetadata {
+  original_filename?: string;
+  persisted_by?: string;
+  research_topic?: string;
+  topic_key?: string;
+  [key: string]: unknown;
+}
+
 export interface KnowledgeItem {
   id: number;
   thread_id: string | null;
@@ -11,8 +19,8 @@ export interface KnowledgeItem {
   title: string;
   size_chars: number;
   created_at: string;
-  metadata: Record<string, unknown>;
-  content?: string; // only present in detail response
+  metadata: KnowledgeMetadata;
+  content?: string;
 }
 
 export interface CategorySummary {
@@ -38,17 +46,21 @@ export function fetchKnowledgeItems(params: {
   offset?: number;
 }) {
   const search = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== '') search.append(k, String(v));
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      search.append(key, String(value));
+    }
   });
   const qs = search.toString();
-  return getJson<{ items: KnowledgeItem[] }>(`${CHAT_BASE}/deep/knowledge${qs ? `?${qs}` : ''}`)
-    .then(r => r.items);
+  return getJson<{ items: KnowledgeItem[] }>(
+    `${CHAT_BASE}/deep/knowledge${qs ? `?${qs}` : ''}`,
+  ).then((r) => r.items);
 }
 
 export function fetchKnowledgeCategories() {
-  return getJson<{ categories: CategorySummary[] }>(`${CHAT_BASE}/deep/knowledge/categories`)
-    .then(r => r.categories);
+  return getJson<{ categories: CategorySummary[] }>(
+    `${CHAT_BASE}/deep/knowledge/categories`,
+  ).then((r) => r.categories);
 }
 
 export function fetchKnowledgeDetail(id: number) {
@@ -65,12 +77,7 @@ export async function copyKnowledgeContent(content: string): Promise<void> {
 
 export function exportKnowledgeAsPdf(title: string, html: string) {
   const safeTitle = title.replace(/[<>:"/\\|?*]+/g, '_');
-  const popup = window.open('', '_blank', 'noopener,noreferrer,width=1200,height=900');
-  if (!popup) {
-    throw new Error('浏览器拦截了 PDF 导出窗口，请允许弹窗后重试');
-  }
-
-  popup.document.write(`<!DOCTYPE html>
+  const documentHtml = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
@@ -137,6 +144,11 @@ export function exportKnowledgeAsPdf(title: string, html: string) {
       background: #f8fafc;
       color: var(--muted);
     }
+    .meta {
+      margin-bottom: 24px;
+      color: var(--muted);
+      font-size: 12px;
+    }
     @media print {
       body { padding: 0; background: #fff; }
       main {
@@ -152,16 +164,28 @@ export function exportKnowledgeAsPdf(title: string, html: string) {
 <body>
   <main>
     <h1>${safeTitle}</h1>
+    <div class="meta">请在浏览器打印对话框中选择“另存为 PDF”。</div>
     ${html}
   </main>
   <script>
     window.addEventListener('load', () => {
-      window.print();
+      setTimeout(() => window.print(), 120);
     });
   </script>
 </body>
-</html>`);
-  popup.document.close();
+</html>`;
+
+  const blob = new Blob([documentHtml], { type: 'text/html;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+  const popup = window.open(blobUrl, '_blank');
+  if (!popup) {
+    URL.revokeObjectURL(blobUrl);
+    throw new Error('浏览器拦截了 PDF 导出窗口，请允许弹窗后重试');
+  }
+
+  const revoke = () => URL.revokeObjectURL(blobUrl);
+  popup.addEventListener?.('beforeunload', revoke);
+  window.setTimeout(revoke, 60_000);
 }
 
 export async function deleteKnowledgeItem(id: number): Promise<boolean> {

@@ -18,6 +18,9 @@ _REQUEST_THREAD_ID: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 _REQUEST_TURN_ID: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "knowledge_turn_id", default=None
 )
+_REQUEST_TOPIC: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "knowledge_request_topic", default=None
+)
 
 _DEFAULT_AGENT_BY_CATEGORY = {
     "paper-analysis": "paper-researcher",
@@ -34,14 +37,35 @@ _DEFAULT_TITLE_BY_CATEGORY = {
 }
 
 
-def set_knowledge_request_context(thread_id: Optional[str], turn_id: Optional[str]) -> tuple[contextvars.Token, contextvars.Token]:
-    return _REQUEST_THREAD_ID.set(thread_id), _REQUEST_TURN_ID.set(turn_id)
+def _normalize_topic_key(topic: str | None) -> str | None:
+    if not topic:
+        return None
+    cleaned = " ".join(topic.strip().split())
+    if not cleaned:
+        return None
+    slug = re.sub(r"[^0-9A-Za-z\u4e00-\u9fff]+", "-", cleaned).strip("-")
+    return slug[:120] or None
 
 
-def reset_knowledge_request_context(tokens: tuple[contextvars.Token, contextvars.Token]) -> None:
-    thread_token, turn_token = tokens
+def set_knowledge_request_context(
+    thread_id: Optional[str],
+    turn_id: Optional[str],
+    topic: Optional[str] = None,
+) -> tuple[contextvars.Token, contextvars.Token, contextvars.Token]:
+    return (
+        _REQUEST_THREAD_ID.set(thread_id),
+        _REQUEST_TURN_ID.set(turn_id),
+        _REQUEST_TOPIC.set(topic),
+    )
+
+
+def reset_knowledge_request_context(
+    tokens: tuple[contextvars.Token, contextvars.Token, contextvars.Token]
+) -> None:
+    thread_token, turn_token, topic_token = tokens
     _REQUEST_THREAD_ID.reset(thread_token)
     _REQUEST_TURN_ID.reset(turn_token)
+    _REQUEST_TOPIC.reset(topic_token)
 
 
 def _canonical_agent_name(category: str, agent_name: Optional[str]) -> str:
@@ -96,7 +120,12 @@ def persist_final_report_if_missing(
         content=normalized_content,
         thread_id=thread_id,
         turn_id=turn_id,
-        metadata={"original_filename": title, "persisted_by": "api-finalizer"},
+        metadata={
+            "original_filename": title,
+            "persisted_by": "api-finalizer",
+            "research_topic": message.strip() or title,
+            "topic_key": _normalize_topic_key(message.strip() or title),
+        },
     )
     logger.info(
         "[%s] 最终综合报告已自动写入 Knowledge DB: id=%s thread=%s turn=%s",
@@ -152,6 +181,7 @@ def save_research_artifact(
     )
     effective_thread_id = thread_id if thread_id is not None else _REQUEST_THREAD_ID.get()
     effective_turn_id = turn_id if turn_id is not None else _REQUEST_TURN_ID.get()
+    effective_topic = _REQUEST_TOPIC.get()
 
     try:
         record = save_knowledge(
@@ -161,7 +191,11 @@ def save_research_artifact(
             content=normalized_content,
             thread_id=effective_thread_id,
             turn_id=effective_turn_id,
-            metadata={"original_filename": canonical_title},
+            metadata={
+                "original_filename": canonical_title,
+                "research_topic": effective_topic or canonical_title,
+                "topic_key": _normalize_topic_key(effective_topic or canonical_title),
+            },
         )
         logger.info("[%s] 成果已写入 Knowledge DB: id=%s category=%s (%d chars)",
                     canonical_agent, record["id"], category, len(normalized_content))

@@ -379,7 +379,7 @@ async def _sse_stream(message: str, thread_id: str, turn_id: str) -> AsyncGenera
     agent = get_deep_agent()
     skill_files = get_skill_files()
     generation_date = date.today().strftime("%Y-%m-%d")
-    context_tokens = set_knowledge_request_context(thread_id, turn_id)
+    context_tokens = set_knowledge_request_context(thread_id, turn_id, message)
 
     # asyncio.Queue 作为多路事件汇聚点
     event_queue: asyncio.Queue[dict | object] = asyncio.Queue(maxsize=_EVENT_QUEUE_MAXSIZE)
@@ -532,7 +532,7 @@ async def deep_sync(req: DeepRequest):
     turn_id = f"turn-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"
     agent = get_deep_agent()
     skill_files = get_skill_files()
-    context_tokens = set_knowledge_request_context(thread_id, turn_id)
+    context_tokens = set_knowledge_request_context(thread_id, turn_id, req.message)
 
     config = {"configurable": {"thread_id": thread_id}}
     input_payload: dict = {"messages": [{"role": "user", "content": req.message}]}
