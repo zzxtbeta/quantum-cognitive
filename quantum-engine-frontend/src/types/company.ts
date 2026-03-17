@@ -1,5 +1,3 @@
-// 公司/候选标的相关类型定义
-
 export interface Candidate {
   id: string;
   name: string;
@@ -22,8 +20,6 @@ export interface CandidateListResponse {
   total: number;
   candidates: Candidate[];
 }
-
-// ── 公司库数据模型 ────────────────────────────────────────────────────────────
 
 export interface Company {
   id: number;
@@ -49,7 +45,7 @@ export interface Company {
   reg_location: string | null;
   industry: string | null;
   scale: string | null;
-  social_staff_num: number | null;
+  social_staff_num: number | string | null;
   website: string | null;
   phone: string | null;
   email: string | null;

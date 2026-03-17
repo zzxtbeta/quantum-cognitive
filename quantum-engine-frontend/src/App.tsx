@@ -13,6 +13,7 @@ import MyNotes from './pages/MyNotes';
 import Chat from './pages/Chat';
 import ToolLogs from './pages/ToolLogs';
 import Knowledge from './pages/Knowledge';
+import EmergingCompanies from './pages/EmergingCompanies';
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
                 <Route path="chat" element={<Chat />} />
                 <Route path="tool-logs" element={<ToolLogs />} />
                 <Route path="knowledge" element={<Knowledge />} />
+                <Route path="emerging-companies" element={<EmergingCompanies />} />
               </Route>
             </Routes>
           </BrowserRouter>

@@ -59,6 +59,111 @@ export function downloadKnowledgeItem(id: number) {
   window.open(`${CHAT_BASE}/deep/knowledge/${id}/download`, '_blank');
 }
 
+export async function copyKnowledgeContent(content: string): Promise<void> {
+  await navigator.clipboard.writeText(content);
+}
+
+export function exportKnowledgeAsPdf(title: string, html: string) {
+  const safeTitle = title.replace(/[<>:"/\\|?*]+/g, '_');
+  const popup = window.open('', '_blank', 'noopener,noreferrer,width=1200,height=900');
+  if (!popup) {
+    throw new Error('浏览器拦截了 PDF 导出窗口，请允许弹窗后重试');
+  }
+
+  popup.document.write(`<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${safeTitle}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #0f172a;
+      --muted: #475569;
+      --line: #cbd5e1;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --link: #1d4ed8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 32px;
+      font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+      color: var(--ink);
+      background: linear-gradient(180deg, #eff6ff 0%, var(--bg) 35%, #ffffff 100%);
+    }
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 40px 48px;
+      box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
+    }
+    h1, h2, h3, h4 { color: var(--ink); }
+    h1 { margin-top: 0; font-size: 28px; }
+    p, li, td, th, blockquote { font-size: 14px; line-height: 1.8; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      vertical-align: top;
+    }
+    th { background: #eff6ff; }
+    code, pre {
+      font-family: "JetBrains Mono", "Cascadia Code", monospace;
+    }
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px;
+      border-radius: 12px;
+    }
+    a { color: var(--link); word-break: break-all; }
+    blockquote {
+      margin: 20px 0;
+      padding: 12px 16px;
+      border-left: 4px solid #60a5fa;
+      background: #f8fafc;
+      color: var(--muted);
+    }
+    @media print {
+      body { padding: 0; background: #fff; }
+      main {
+        max-width: none;
+        border: 0;
+        box-shadow: none;
+        border-radius: 0;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>${safeTitle}</h1>
+    ${html}
+  </main>
+  <script>
+    window.addEventListener('load', () => {
+      window.print();
+    });
+  </script>
+</body>
+</html>`);
+  popup.document.close();
+}
+
 export async function deleteKnowledgeItem(id: number): Promise<boolean> {
   const res = await fetch(`${CHAT_BASE}/deep/knowledge/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

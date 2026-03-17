@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Download, Trash2, ChevronLeft, RefreshCw, Inbox, X } from 'lucide-react';
+import { Download, Trash2, ChevronLeft, RefreshCw, Inbox, X, Copy, FileText } from 'lucide-react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import {
@@ -7,6 +7,8 @@ import {
   fetchKnowledgeCategories,
   fetchKnowledgeDetail,
   downloadKnowledgeItem,
+  copyKnowledgeContent,
+  exportKnowledgeAsPdf,
   deleteKnowledgeItem,
   KnowledgeItem,
   CategorySummary,
@@ -28,6 +30,11 @@ function MarkdownContent({ content }: { content: string }) {
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
+}
+
+function renderMarkdownHtml(content: string) {
+  const raw = marked.parse(content) as string;
+  return DOMPurify.sanitize(raw, { USE_PROFILES: { html: true } });
 }
 
 // ── 分类 → 颜色 / 中文标签 ──────────────────────────────────────────────────
@@ -120,9 +127,13 @@ function KnowledgeCard({
 function DetailPanel({
   item,
   onClose,
+  onCopy,
+  onExportPdf,
 }: {
   item: KnowledgeItem;
   onClose: () => void;
+  onCopy: () => void;
+  onExportPdf: () => void;
 }) {
   return (
     <div className="flex flex-col h-full">
@@ -142,6 +153,20 @@ function DetailPanel({
         >
           <Download className="w-3 h-3" />
           下载
+        </button>
+        <button
+          onClick={onCopy}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg text-slate-700 transition-all"
+        >
+          <Copy className="w-3 h-3" />
+          复制全文
+        </button>
+        <button
+          onClick={onExportPdf}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-lg text-emerald-800 transition-all"
+        >
+          <FileText className="w-3 h-3" />
+          导出 PDF
         </button>
         <button onClick={onClose} className="p-1 rounded hover:bg-slate-200 text-slate-500">
           <X className="w-4 h-4" />
@@ -179,6 +204,7 @@ export default function Knowledge() {
   const [endDate, setEndDate] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [noticeMsg, setNoticeMsg] = useState<string | null>(null);
   const [detailItem, setDetailItem] = useState<KnowledgeItem | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
@@ -206,6 +232,12 @@ export default function Knowledge() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  useEffect(() => {
+    if (!noticeMsg) return;
+    const timer = window.setTimeout(() => setNoticeMsg(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [noticeMsg]);
+
   const handleOpen = useCallback(async (id: number) => {
     setLoadingDetail(true);
     try {
@@ -224,6 +256,26 @@ export default function Knowledge() {
       setItems(prev => prev.filter(x => x.id !== id));
       if (detailItem?.id === id) setDetailItem(null);
     } catch { /* ignore */ }
+  }, [detailItem]);
+
+  const handleCopyDetail = useCallback(async () => {
+    if (!detailItem?.content) return;
+    try {
+      await copyKnowledgeContent(detailItem.content);
+      setNoticeMsg('报告内容已复制到剪贴板');
+    } catch (e: any) {
+      setErrorMsg(e?.message || '复制失败，请检查浏览器剪贴板权限');
+    }
+  }, [detailItem]);
+
+  const handleExportPdf = useCallback(() => {
+    if (!detailItem?.content) return;
+    try {
+      exportKnowledgeAsPdf(detailItem.title, renderMarkdownHtml(detailItem.content));
+      setNoticeMsg('已打开 PDF 打印窗口，可直接另存为 PDF');
+    } catch (e: any) {
+      setErrorMsg(e?.message || '导出 PDF 失败，请稍后重试');
+    }
   }, [detailItem]);
 
   const totalCount = categories.reduce((s, c) => s + c.count, 0);
@@ -263,8 +315,23 @@ export default function Knowledge() {
   // ── 详情视图 ────────────────────────────────────────────────────────────
   if (detailItem) {
     return (
-      <div className="h-[calc(100vh-8rem)]">
-        <DetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
+      <div className="h-[calc(100vh-8rem)] flex flex-col gap-3">
+        {errorMsg && (
+          <div className="px-3 py-2 text-[12px] rounded-lg border border-red-400/40 bg-red-900/30 text-red-100">
+            {errorMsg}
+          </div>
+        )}
+        {noticeMsg && (
+          <div className="px-3 py-2 text-[12px] rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800">
+            {noticeMsg}
+          </div>
+        )}
+        <DetailPanel
+          item={detailItem}
+          onClose={() => setDetailItem(null)}
+          onCopy={handleCopyDetail}
+          onExportPdf={handleExportPdf}
+        />
       </div>
     );
   }
@@ -365,6 +432,12 @@ export default function Knowledge() {
       {errorMsg && (
         <div className="mb-3 px-3 py-2 text-[12px] rounded-lg border border-red-400/40 bg-red-900/30 text-red-100">
           {errorMsg}
+        </div>
+      )}
+
+      {noticeMsg && (
+        <div className="mb-3 px-3 py-2 text-[12px] rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800">
+          {noticeMsg}
         </div>
       )}
 

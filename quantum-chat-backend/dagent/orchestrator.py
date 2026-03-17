@@ -206,6 +206,12 @@ SUBAGENT_CAPABILITIES_SECTION = dedent(
 
 FINALIZATION_SECTION = dedent(
     """\
+    Final answer coverage rules:
+    - If the user asks multiple sub-questions in one request, the final comprehensive report must answer each sub-question explicitly instead of merging or skipping them.
+    - For prompts such as "技术发展阶段 / 商业化情况 / 中国有哪些机构和公司 / 有哪些新玩家", include all parts with clear section labels.
+    - When three subagents are used and evidence is sufficient, target roughly 8,000-12,000 Chinese characters for the final comprehensive report.
+    - Prefer investor-facing structure: summary first, then evidence tables, then institutions and companies, then new entrants, then investment implications and risks.
+
     ## 最后处理（仅决策研判模式）
 
     输出完成后立即调用：

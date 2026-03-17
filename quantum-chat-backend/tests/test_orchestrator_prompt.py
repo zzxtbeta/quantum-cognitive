@@ -8,7 +8,8 @@ def test_compose_prompt_sections_includes_key_rules():
     assert "save_research_artifact" in prompt
     assert "recent_date_window" in prompt
     assert 'search_web(topic="general")' in prompt
-    assert "中国生态全景问题" in prompt
+    assert "Final answer coverage rules" in prompt
+    assert "8,000-12,000 Chinese characters" in prompt
 
 
 def test_orchestrator_prompt_matches_composed_sections():

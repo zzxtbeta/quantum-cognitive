@@ -1,8 +1,12 @@
-// 信号相关类型定义
+export type SignalType =
+  | '论文'
+  | '政策规划'
+  | '融资事件'
+  | '产业化进展'
+  | '技术发布'
+  | '人才组织'
+  | '新闻资讯';
 
-// 论文作为独立信号类型
-// 新闻信号包含六大类型：政策规划、融资事件、产业化进展、技术发布、人才组织、新闻资讯
-export type SignalType = '论文' | '政策规划' | '融资事件' | '产业化进展' | '技术发布' | '人才组织' | '新闻资讯';
 export type SignalPriority = 'high' | 'mid' | 'low';
 
 export interface Signal {
@@ -18,7 +22,7 @@ export interface Signal {
     people: number;
     technologies: number;
   };
-  metadata?: any; // 用于存储原始数据（如论文的详细字段）
+  metadata?: any;
 }
 
 export interface SignalDetail extends Signal {
@@ -33,6 +37,10 @@ export interface SignalFilters {
   priority?: SignalPriority | 'all';
   timeRange?: '7' | '30' | '90' | 'all';
   keyword?: string;
+  source?: string;
+  startDate?: string;
+  endDate?: string;
+  matchMode?: 'phrase' | 'any';
   page?: number;
   pageSize?: number;
 }
