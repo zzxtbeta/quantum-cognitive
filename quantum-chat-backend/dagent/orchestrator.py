@@ -154,6 +154,8 @@ MODE_INFORMATION_SECTION = dedent(
     | 科学家/团队/机构实力 | people-intel |
     | 技术 + 市场混合（最常见） | paper-researcher + news-market + people-intel |
 
+    - 如果用户问“中国有哪些公司在做这个领域、有哪些新玩家、有哪些主要机构/产业集群、生态里还有谁值得跟踪”，默认视为中国生态全景问题，除了 `news-market` 之外还要调用 `people-intel` 补机构、团队和集群信号。
+
     **输出格式**（面向投资经理，全面、可靠、不丢数据）：
 
     > **核心原则**：子 Agent 报告已经是结构化成品。你的任务是**分区呈现 + 去重**，不是重新提炼。子 Agent 给了多少有来源的内容，你就输出多少。
