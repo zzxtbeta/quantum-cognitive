@@ -35,7 +35,7 @@ def _papers_method() -> str:
     return method if method in {"GET", "POST"} else "POST"
 
 
-def semantic_search_papers(query: str, top_k: int = 10) -> str:
+def semantic_search_papers(query: str, top_k: int = 5) -> str:
     """
     通过语义向量检索量子赛道顶刊顶会论文数据库，返回语义最相关的论文列表。
     支持中英文跨语言检索（中文 query 可自动匹配英文论文）。
@@ -44,7 +44,7 @@ def semantic_search_papers(query: str, top_k: int = 10) -> str:
         query: 自然语言查询，中英文均可
                中文示例：'超导量子比特纠错' '量子通信密钥分发' '量子计算商业化'
                英文示例：'surface code error correction' 'quantum advantage superconducting'
-        top_k: 返回论文数量，1-20，默认 10
+        top_k: 返回论文数量，1-20，默认 5；复杂主题优先多次小样本检索而不是单次拉很大
 
     Returns:
         论文列表 JSON。data 数组中每条含：

@@ -1,9 +1,11 @@
 """量子赛道新闻/市场情报工具"""
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import logging
 import os
+from datetime import date, timedelta
 from typing import Literal, Optional
 
 logger = logging.getLogger(__name__)
@@ -26,8 +28,13 @@ def _get_tavily_client():
 def search_web(
     query: str,
     topic: Literal["general", "news", "finance"] = "news",
-    days: int = 30,
+    days: Optional[int] = 30,
     max_results: int = 8,
+    time_range: Optional[Literal["day", "week", "month", "year", "d", "w", "m", "y"]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    search_depth: Literal["basic", "advanced"] = "basic",
+    include_answer: bool = False,
 ) -> str:
     """
     实时互联网搜索，获取量子赛道最新动态（新闻、融资、政策、公司进展等）。
@@ -42,8 +49,12 @@ def search_web(
         query: 自然语言查询，越具体越好，如 '本源量子2025融资' '中国量子通信政策2025'
                融资事件：'[公司名] 融资 2025'；政策：'量子科技政策 2025'；最新进展：'[公司/主题] 最新'
         topic: 'news'=新闻（默认）'finance'=金融/融资事件 'general'=通用政策/公司信息
-        days: 搜索最近 N 天内容 (1-365)，新闻查近 30 天，融资/政策查近 180 天
-        max_results: 最多返回条数 (1-10)，默认 8
+        days: 仅在 topic='news' 时使用的最近 N 天窗口
+        max_results: 最多返回条数 (1-20)，默认 8
+        time_range: 相对时间窗口，适合 month/year 这类快速筛选
+        start_date/end_date: 精确日期过滤，格式 YYYY-MM-DD，优先于 days
+        search_depth: basic 更快，advanced 更深但更慢更贵
+        include_answer: 是否返回 Tavily 的 LLM answer，默认关闭以减少噪声和延迟
 
     Returns:
         搜索结果 JSON，含 answer 摘要汇总 + results 列表（title/url/published_date/content/score）
@@ -51,14 +62,38 @@ def search_web(
     client = _get_tavily_client()
     if not client:
         return "Tavily API Key 未配置，无法搜索实时内容。请在 .env 中设置 TAVILY_API_KEY"
+
+    params = {
+        "query": query,
+        "max_results": max(1, min(max_results, 20)),
+        "topic": topic,
+        "search_depth": search_depth,
+        "include_answer": include_answer,
+    }
+    if time_range:
+        params["time_range"] = time_range
+    else:
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        if days is not None and topic == "news" and not start_date and not end_date:
+            params["days"] = max(1, days)
+
     try:
-        result = client.search(
-            query=query,
-            max_results=max_results,
-            topic=topic,
-            include_answer=True,
-            days=days,
-        )
+        try:
+            result = client.search(**params)
+        except TypeError:
+            # Backward compatibility for older tavily-python versions.
+            fallback = {
+                "query": query,
+                "max_results": max(1, min(max_results, 10)),
+                "topic": topic,
+                "include_answer": include_answer,
+            }
+            if days is not None and topic == "news":
+                fallback["days"] = max(1, days)
+            result = client.search(**fallback)
         simplified = {
             "answer": result.get("answer", ""),
             "results": [
@@ -76,6 +111,63 @@ def search_web(
     except Exception as e:
         logger.error("search_web 失败: %s", e)
         return f"Error: {e}"
+
+
+def search_web_batch(
+    queries: list[str],
+    topic: Literal["general", "news", "finance"] = "news",
+    days: Optional[int] = 30,
+    max_results: int = 5,
+    time_range: Optional[Literal["day", "week", "month", "year", "d", "w", "m", "y"]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    search_depth: Literal["basic", "advanced"] = "basic",
+) -> str:
+    """Run multiple Tavily searches in parallel and return grouped results.
+
+    Use this for bilingual queries, multi-angle funding sweeps, or parallel
+    validation of several companies. Keep the query list short and concrete.
+    """
+    cleaned_queries = [q.strip() for q in queries if q and q.strip()]
+    if not cleaned_queries:
+        return "Error: queries 不能为空"
+
+    limited_queries = cleaned_queries[:6]
+    workers = min(len(limited_queries), 4)
+
+    def _run(single_query: str) -> dict:
+        payload = search_web(
+            query=single_query,
+            topic=topic,
+            days=days,
+            max_results=max_results,
+            time_range=time_range,
+            start_date=start_date,
+            end_date=end_date,
+            search_depth=search_depth,
+            include_answer=False,
+        )
+        try:
+            parsed = json.loads(payload)
+        except json.JSONDecodeError:
+            parsed = {"error": payload, "results": []}
+        return {"query": single_query, **parsed}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        grouped = list(executor.map(_run, limited_queries))
+
+    return json.dumps({"topic": topic, "queries": grouped}, ensure_ascii=False, indent=2)
+
+
+def recent_date_window(days_back: int = 90) -> str:
+    """Return a recent date window JSON string for precise search filtering."""
+    days_back = max(1, days_back)
+    end = date.today()
+    start = end - timedelta(days=days_back)
+    return json.dumps(
+        {"start_date": start.isoformat(), "end_date": end.isoformat(), "days_back": days_back},
+        ensure_ascii=False,
+    )
 
 
 # ── 量子新闻内部数据库工具 ────────────────────────────────────────────

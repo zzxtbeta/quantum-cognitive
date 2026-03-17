@@ -156,3 +156,40 @@ def get_categories() -> list[dict]:
                FROM knowledge_items GROUP BY category ORDER BY latest DESC"""
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def find_knowledge_item(
+    *,
+    category: str,
+    thread_id: Optional[str] = None,
+    turn_id: Optional[str] = None,
+) -> Optional[dict]:
+    """Find the latest matching knowledge item for a category/thread/turn tuple."""
+    wheres = ["category = ?"]
+    params: list = [category]
+    if thread_id is None:
+        wheres.append("thread_id IS NULL")
+    else:
+        wheres.append("thread_id = ?")
+        params.append(thread_id)
+    if turn_id is None:
+        wheres.append("turn_id IS NULL")
+    else:
+        wheres.append("turn_id = ?")
+        params.append(turn_id)
+
+    sql = (
+        "SELECT * FROM knowledge_items WHERE "
+        + " AND ".join(wheres)
+        + " ORDER BY created_at DESC LIMIT 1"
+    )
+    with _conn() as c:
+        row = c.execute(sql, params).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    try:
+        d["metadata"] = json.loads(d.get("metadata") or "{}")
+    except Exception:
+        d["metadata"] = {}
+    return d

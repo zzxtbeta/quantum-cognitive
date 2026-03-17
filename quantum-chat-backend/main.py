@@ -81,7 +81,7 @@ app.include_router(data_proxy_router)
 async def _global_exc_handler(request: Request, exc: Exception):
     tb = traceback.format_exc()
     logging.getLogger("uvicorn.error").error("Unhandled exception:\n%s", tb)
-    return JSONResponse(status_code=500, content={"detail": tb})
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 @app.get("/")

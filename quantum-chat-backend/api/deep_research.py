@@ -12,6 +12,7 @@ import json
 import logging
 import time
 import uuid
+from datetime import date
 from typing import AsyncGenerator, Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -19,21 +20,19 @@ from fastapi.responses import StreamingResponse
 from langchain_core.callbacks import AsyncCallbackHandler
 from pydantic import BaseModel
 
-from dagent import get_deep_agent, get_skill_files
+from core.report_postprocess import normalize_report_metadata, sanitize_report_markdown
+from dagent import get_deep_agent, get_skill_files, reload_skill_files
+from dagent.tools.cache_tools import (
+    persist_final_report_if_missing,
+    reset_knowledge_request_context,
+    set_knowledge_request_context,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/deep", tags=["deep-research"])
 
-# ─── skill 文件缓存（启动后只加载一次，热重载由 /deep/reload-skills 接口触发）──────
-_cached_skill_files: dict | None = None
-
-
-def _get_cached_skill_files() -> dict:
-    global _cached_skill_files
-    if _cached_skill_files is None:
-        _cached_skill_files = get_skill_files()
-        logger.info("Skill 文件已缓存，共 %d 个文件", len(_cached_skill_files))
-    return _cached_skill_files
+_EVENT_QUEUE_MAXSIZE = 256
+_TOKEN_FLUSH_THRESHOLD = 160
 
 
 class DeepRequest(BaseModel):
@@ -59,7 +58,9 @@ _TOOL_LABELS: dict[str, str] = {
     "semantic_search_papers": "语义检索论文",
     "query_news_db": "查询新闻数据库",
     "semantic_search_news": "语义检索新闻",
+    "recent_date_window": "生成近期时间窗",
     "search_web": "搜索互联网",
+    "search_web_batch": "并发搜索互联网",
     "search_researchers": "检索研究人员",
     "search_quantum_news": "搜索量子新闻",
     "search_quantum_funding": "搜索融资信息",
@@ -112,14 +113,108 @@ def _normalize_output(output: Any) -> str:
         return str(output)
 
 
+_normalize_report_metadata = normalize_report_metadata
+
+
+class _ReportMetadataNormalizer:
+    """Buffer only the opening report prefix and normalize metadata once."""
+
+    def __init__(self, generation_date: str) -> None:
+        self._generation_date = generation_date
+        self._buffer = ""
+        self._normalized = False
+
+    def feed(self, text: str) -> list[str]:
+        if not text:
+            return []
+        if self._normalized:
+            return [text]
+
+        self._buffer += text
+        if not self._ready():
+            return []
+
+        normalized = _normalize_report_metadata(self._buffer, self._generation_date)
+        self._buffer = ""
+        self._normalized = True
+        return [normalized]
+
+    def flush(self) -> list[str]:
+        if self._normalized:
+            return []
+        if not self._buffer:
+            return []
+        normalized = _normalize_report_metadata(self._buffer, self._generation_date)
+        self._buffer = ""
+        self._normalized = True
+        return [normalized]
+
+    def _ready(self) -> bool:
+        if "**数据截止日期**" in self._buffer and "\n" in self._buffer:
+            return True
+        if len(self._buffer) >= 240:
+            return True
+        if "\n## " in self._buffer or "\n---" in self._buffer:
+            return True
+        return False
+
+
+class _SSEEventEmitter:
+    """聚合连续 token 事件，减少长文本输出时的 SSE 压力。"""
+
+    def __init__(
+        self,
+        queue: asyncio.Queue,
+        *,
+        token_flush_threshold: int = _TOKEN_FLUSH_THRESHOLD,
+    ) -> None:
+        self._queue = queue
+        self._token_flush_threshold = token_flush_threshold
+        self._pending_token: dict[str, Any] | None = None
+
+    async def emit(self, event: dict[str, Any]) -> None:
+        event_type = event.get("type")
+        if event_type in {"token", "subagent_token"}:
+            await self._emit_token(event)
+            return
+
+        await self.flush_tokens()
+        await self._queue.put(event)
+
+    async def flush_tokens(self) -> None:
+        if self._pending_token is None:
+            return
+        await self._queue.put(self._pending_token)
+        self._pending_token = None
+
+    async def _emit_token(self, event: dict[str, Any]) -> None:
+        content = event.get("content") or ""
+        if not content:
+            return
+
+        if self._pending_token is None:
+            self._pending_token = dict(event)
+        else:
+            same_type = self._pending_token.get("type") == event.get("type")
+            same_agent = self._pending_token.get("agent") == event.get("agent")
+            if same_type and same_agent:
+                self._pending_token["content"] = f"{self._pending_token.get('content', '')}{content}"
+            else:
+                await self.flush_tokens()
+                self._pending_token = dict(event)
+
+        if len(str(self._pending_token.get("content", ""))) >= self._token_flush_threshold:
+            await self.flush_tokens()
+
+
 # ─── 进度回调处理器 ─────────────────────────────────────────────────────────────
 
 class _ProgressHandler(AsyncCallbackHandler):
     """将工具调用事件转发到 asyncio.Queue，供 SSE 流消费。同时持久化到 tool_log DB。"""
 
-    def __init__(self, queue: asyncio.Queue, thread_id: str, turn_id: str) -> None:
+    def __init__(self, emitter: _SSEEventEmitter, thread_id: str, turn_id: str) -> None:
         super().__init__()
-        self._queue = queue
+        self._emitter = emitter
         self._thread_id = thread_id
         self._turn_id = turn_id
         self._pending: dict[str, float] = {}       # tool run_id → monotonic start time
@@ -158,7 +253,7 @@ class _ProgressHandler(AsyncCallbackHandler):
                 subagent = inp.get("subagent_type", "subagent")
                 desc = (inp.get("description") or "")[:100]
                 subagent_label = _SUBAGENT_LABELS.get(subagent, f"{subagent}")
-                await self._queue.put({
+                await self._emitter.emit({
                     "type": "agent_start",
                     "agent": subagent,
                     "content": f"{subagent_label} 启动中…{desc[:60]}{'…' if len(desc) > 60 else ''}",
@@ -172,7 +267,7 @@ class _ProgressHandler(AsyncCallbackHandler):
         if tool_name in _FILE_OPS:
             return
 
-        await self._queue.put({
+        await self._emitter.emit({
             "type": "step",
             "tool": tool_name,
             "content": f"🔧 {label}",
@@ -194,7 +289,7 @@ class _ProgressHandler(AsyncCallbackHandler):
             log_end(run_id_str, _normalize_output(output), duration_ms)
         except Exception:
             pass
-        await self._queue.put({"type": "step_done"})
+        await self._emitter.emit({"type": "step_done"})
 
     async def on_tool_error(
         self,
@@ -213,7 +308,7 @@ class _ProgressHandler(AsyncCallbackHandler):
             log_end(run_id_str, f"[ERROR] {type(error).__name__}: {error}", duration_ms)
         except Exception:
             pass
-        await self._queue.put({"type": "step_done"})
+        await self._emitter.emit({"type": "step_done"})
 
     async def on_llm_start(
         self,
@@ -282,13 +377,18 @@ async def _sse_stream(message: str, thread_id: str, turn_id: str) -> AsyncGenera
     from langchain_core.messages import AIMessageChunk
 
     agent = get_deep_agent()
-    skill_files = _get_cached_skill_files()
+    skill_files = get_skill_files()
+    generation_date = date.today().strftime("%Y-%m-%d")
+    context_tokens = set_knowledge_request_context(thread_id, turn_id)
 
     # asyncio.Queue 作为多路事件汇聚点
-    event_queue: asyncio.Queue[dict | object] = asyncio.Queue()
+    event_queue: asyncio.Queue[dict | object] = asyncio.Queue(maxsize=_EVENT_QUEUE_MAXSIZE)
     _SENTINEL = object()
+    emitter = _SSEEventEmitter(event_queue)
+    report_metadata_normalizer = _ReportMetadataNormalizer(generation_date)
+    full_report_chunks: list[str] = []
 
-    progress_handler = _ProgressHandler(event_queue, thread_id, turn_id)
+    progress_handler = _ProgressHandler(emitter, thread_id, turn_id)
     config = {
         "configurable": {"thread_id": thread_id},
         "callbacks": [progress_handler],
@@ -338,11 +438,19 @@ async def _sse_stream(message: str, thread_id: str, turn_id: str) -> AsyncGenera
 
                 agent_name = metadata.get("lc_agent_name", "quantum-orchestrator")
                 ev_type = "subagent_token" if agent_name != "quantum-orchestrator" else "token"
-                await event_queue.put({
-                    "type": ev_type,
-                    "agent": agent_name,
-                    "content": chunk.content,
-                })
+                normalized_chunks = (
+                    report_metadata_normalizer.feed(chunk.content)
+                    if agent_name == "quantum-orchestrator"
+                    else [chunk.content]
+                )
+                for normalized_chunk in normalized_chunks:
+                    if agent_name == "quantum-orchestrator":
+                        full_report_chunks.append(normalized_chunk)
+                    await emitter.emit({
+                        "type": ev_type,
+                        "agent": agent_name,
+                        "content": normalized_chunk,
+                    })
         except asyncio.CancelledError:
             logger.info("DeepAgent 流被取消 thread_id=%s", thread_id)
             # Python async for 遇到异常时不自动调 aclose()，需要显式关闭
@@ -354,8 +462,24 @@ async def _sse_stream(message: str, thread_id: str, turn_id: str) -> AsyncGenera
                 pass
         except Exception as e:
             logger.exception("DeepAgent 流异常 thread_id=%s: %s", thread_id, e)
-            await event_queue.put({"type": "error", "content": str(e)})
+            await emitter.emit({"type": "error", "content": str(e)})
         finally:
+            for normalized_chunk in report_metadata_normalizer.flush():
+                full_report_chunks.append(normalized_chunk)
+                await emitter.emit({
+                    "type": "token",
+                    "agent": "quantum-orchestrator",
+                    "content": normalized_chunk,
+                })
+            final_report = sanitize_report_markdown("".join(full_report_chunks), generation_date)
+            persist_final_report_if_missing(
+                message=message,
+                content=final_report,
+                thread_id=thread_id,
+                turn_id=turn_id,
+            )
+            await emitter.emit({"type": "final_report", "content": final_report})
+            await emitter.flush_tokens()
             await event_queue.put(_SENTINEL)
 
     agent_task = asyncio.create_task(_run_agent())
@@ -370,6 +494,7 @@ async def _sse_stream(message: str, thread_id: str, turn_id: str) -> AsyncGenera
     except asyncio.CancelledError:
         logger.info("SSE 客户端断开 thread_id=%s", thread_id)
     finally:
+        reset_knowledge_request_context(context_tokens)
         if not agent_task.done():
             agent_task.cancel()
             try:
@@ -404,25 +529,37 @@ async def deep_stream(req: DeepRequest):
 async def deep_sync(req: DeepRequest):
     """同步深度研究（调试用）"""
     thread_id = req.thread_id or str(uuid.uuid4())
+    turn_id = f"turn-{int(time.time() * 1000)}-{uuid.uuid4().hex[:6]}"
     agent = get_deep_agent()
-    skill_files = _get_cached_skill_files()
+    skill_files = get_skill_files()
+    context_tokens = set_knowledge_request_context(thread_id, turn_id)
 
     config = {"configurable": {"thread_id": thread_id}}
     input_payload: dict = {"messages": [{"role": "user", "content": req.message}]}
     if skill_files:
         input_payload["files"] = skill_files
 
-    result = await agent.ainvoke(input_payload, config=config)
-    last_msg = result["messages"][-1]
-    return DeepResponse(thread_id=thread_id, content=last_msg.content)
+    try:
+        result = await agent.ainvoke(input_payload, config=config)
+        last_msg = result["messages"][-1]
+        generation_date = date.today().strftime("%Y-%m-%d")
+        content = sanitize_report_markdown(last_msg.content, generation_date)
+        persist_final_report_if_missing(
+            message=req.message,
+            content=content,
+            thread_id=thread_id,
+            turn_id=turn_id,
+        )
+        return DeepResponse(thread_id=thread_id, content=content)
+    finally:
+        reset_knowledge_request_context(context_tokens)
 
 
 @router.post("/reload-skills")
 async def reload_skills():
     """强制重新加载所有 Skill 文件（更新 SKILL.md 后调用）"""
-    global _cached_skill_files
-    _cached_skill_files = get_skill_files()
-    return {"status": "reloaded", "count": len(_cached_skill_files)}
+    skill_files = reload_skill_files()
+    return {"status": "reloaded", "count": len(skill_files)}
 
 
 @router.get("/history/{thread_id}")
@@ -442,6 +579,8 @@ async def deep_history(thread_id: str):
         content = msg.content if hasattr(msg, "content") else ""
         # 过滤掉工具调用消息和空内容
         if content and isinstance(content, str) and not msg.__class__.__name__.startswith("Tool"):
+            if role_map.get(role, role) == "assistant":
+                content = sanitize_report_markdown(content, date.today().strftime("%Y-%m-%d"))
             messages.append({"role": role_map.get(role, role), "content": content})
     return {"thread_id": thread_id, "messages": messages}
 

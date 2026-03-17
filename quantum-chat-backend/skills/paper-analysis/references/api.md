@@ -27,15 +27,15 @@ Base URL: <QUANTUM_API_BASE_URL>   # 例如 https://www.gravaity.ai/datalake/api
 ### 请求 Body
 
 ```json
-{"query": "超导量子比特纠错", "top_k": 10}
+{"query": "超导量子比特纠错", "top_k": 5}
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `query` | string | 是 | 自然语言查询，中英文均可，越具体越好 |
-| `top_k` | int | 否 | 返回数量，默认 10，建议 5~15 |
+| `top_k` | int | 否 | 返回数量，默认 5，建议优先 5；需要扩召回时再多轮查询 |
 
-**多角度查询策略**：单次 `top_k=10` 覆盖有限，复杂主题建议用不同角度发起 3-5 次查询：
+**多角度查询策略**：优先单次 `top_k=5`，复杂主题用不同角度发起 3-5 次查询：
 - 中文专业术语（如"超导量子比特纠错"）
 - 英文对应表达（如"superconducting qubit error correction"）
 - 相关概念侧翼（如"surface code fault-tolerant threshold"）
