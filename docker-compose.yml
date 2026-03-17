@@ -15,6 +15,9 @@ services:
       dockerfile: Dockerfile
     container_name: quantum-backend
     restart: unless-stopped
+    env_file:
+      - ./.env
+      - ./quantum-chat-backend/.env
     ports:
       - "8003:8003"      # ECS 安全组需开放 8003（仅后端直接调试用，前端走 Nginx 内网转发）
     environment:

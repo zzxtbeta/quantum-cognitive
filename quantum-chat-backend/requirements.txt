@@ -16,6 +16,7 @@ pydantic>=2.0.0
 pydantic-settings>=2.0.0
 
 # Web search
+tavily-python>=0.5.0
 langchain-tavily>=0.1.0
 langchain-community>=0.3.0  # fallback if langchain-tavily unavailable
 

@@ -25,7 +25,7 @@ class _FakeClient:
 
 def test_search_web_prefers_precise_date_filters(monkeypatch):
     client = _FakeClient()
-    monkeypatch.setattr(news_tools, "_get_tavily_client", lambda: client)
+    monkeypatch.setattr(news_tools, "_get_tavily_client", lambda: (client, None))
 
     payload = news_tools.search_web(
         query="quantum funding",
@@ -68,6 +68,22 @@ def test_search_web_batch_groups_results_by_query(monkeypatch):
     assert parsed["topic"] == "finance"
     assert len(parsed["queries"]) == 2
     assert parsed["queries"][0]["results"][0]["title"] in {"中文融资", "english funding"}
+
+
+def test_search_web_reports_missing_package(monkeypatch):
+    monkeypatch.setattr(news_tools, "_get_tavily_client", lambda: (None, "missing_package"))
+
+    payload = news_tools.search_web(query="latest quantum funding")
+
+    assert "tavily-python" in payload
+
+
+def test_search_web_reports_missing_api_key(monkeypatch):
+    monkeypatch.setattr(news_tools, "_get_tavily_client", lambda: (None, "missing_api_key"))
+
+    payload = news_tools.search_web(query="latest quantum funding")
+
+    assert "TAVILY_API_KEY" in payload
 
 
 def test_recent_date_window_is_precise(monkeypatch):

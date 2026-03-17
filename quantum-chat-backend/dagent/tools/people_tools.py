@@ -1,112 +1,166 @@
-"""量子人才/团队数据工具 — 调用量子引擎 People API"""
+"""People and institution tools backed by the private Quantum API."""
 from __future__ import annotations
 
 import json
 import logging
-from typing import List, Optional, Union
+from typing import Any, Optional, Union
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
 
-def _headers() -> dict:
+def _headers() -> dict[str, str]:
     from core.config import settings
+
     return {"X-API-Key": settings.quantum_api_key}
 
 
 def _base_url() -> str:
     from core.config import settings
-    # 兼容两种配置：
-    # 1) base 已包含 /api（推荐）
-    # 2) base 不含 /api（历史配置）
+
     base = settings.quantum_api_base_url.rstrip("/")
     return base if base.endswith("/api") else f"{base}/api"
 
 
-def _people_search_path() -> str:
-    from core.config import settings
-    path = (settings.quantum_api_people_search_path or "/people/search").strip()
+def _normalized_path(value: str, default: str) -> str:
+    path = (value or default).strip()
     return path if path.startswith("/") else f"/{path}"
 
 
+def _people_search_path() -> str:
+    from core.config import settings
+
+    return _normalized_path(settings.quantum_api_people_search_path, "/people/search")
+
+
+def _institutions_search_path() -> str:
+    from core.config import settings
+
+    return _normalized_path(
+        settings.quantum_api_institutions_search_path,
+        "/institutions/search",
+    )
+
+
+def _get_json(path: str, params: dict[str, Any]) -> dict[str, Any]:
+    response = httpx.get(
+        f"{_base_url()}{path}",
+        params=params,
+        headers=_headers(),
+        timeout=15,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    return payload if isinstance(payload, dict) else {"items": payload}
+
+
+def search_institutions(
+    keyword: str = "",
+    institution_type: str = "",
+    country: str = "",
+    page: int = 1,
+    page_size: int = 20,
+) -> str:
+    """Search compact institution summaries from the private Gold layer."""
+    params: dict[str, Any] = {"page": page, "page_size": page_size}
+    if keyword.strip():
+        params["keyword"] = keyword.strip()
+    if institution_type.strip():
+        params["institution_type"] = institution_type.strip()
+    if country.strip():
+        params["country"] = country.strip()
+
+    try:
+        data = _get_json(_institutions_search_path(), params)
+        items = data.get("items", [])
+        total = data.get("total", len(items))
+        simplified = [
+            {
+                "institution_id": item.get("institution_id"),
+                "display_name": item.get("display_name"),
+                "standardized_name": item.get("standardized_name"),
+                "institution_type": item.get("institution_type"),
+                "institution_type_label": item.get("institution_type_label"),
+                "country": item.get("country"),
+                "region": item.get("region"),
+                "member_count": item.get("member_count"),
+                "paper_count": item.get("paper_count"),
+            }
+            for item in items
+        ]
+        return json.dumps(
+            {
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "items": simplified,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    except Exception as exc:
+        logger.error("search_institutions failed: %s", exc)
+        return json.dumps({"error": str(exc), "items": []}, ensure_ascii=False)
+
+
 def search_researchers(
-    institution: Optional[Union[str, List[str]]] = None,
+    institution: Optional[Union[str, list[str]]] = None,
     name: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
 ) -> str:
-    """
-    查询量子赛道研究人员信息。支持两种模式（二选一）：
-
-    **模式 A — 按机构查询**：institution=["..."] → 返回匹配机构的所有量子研究人员
-    **模式 B — 按姓名查询**：name="王浩华" → 返回该人员详细信息
-
-    ⚠️ 约束：
-    - name 字段每次只传一个人名；需查多人时请并行发起多次独立调用
-    - institution 与 name 不建议同时传（逻辑 AND，会过度限制结果）
-
-    Args:
-        institution: 机构名称。支持单个字符串或字符串列表，列表内多个关键词之间为 OR 关系。
-            强烈建议同时传入全称/缩写/英文名，防止数据库充分匹配。
-            示例：['中国科学技术大学', '中科大', 'USTC']
-                  ['清华大学', 'THU', 'Tsinghua']
-                  ['北京量子信息科学研究院']
-        name: 研究人员姓名，中英文均可，每次仅传一人（如 '王浩华' 'Pan Jianwei'）
-        page: 页码，从 1 开始
-        page_size: 每页条数，默认 20，最大 100
-
-    Returns:
-        研究人员列表 JSON：{"total": N, "page": P, "page_size": S, "items": [...]}
-        每条 item 含：name, name_en, institution, position, department,
-        email, research_areas, introduction_snippet（前400字）
-    """
+    """Search researchers by institution aliases or exact person name."""
     if not institution and not name:
         return (
-            "Error: 必须提供 institution 或 name 其中一个参数。"
-            "若两者均不传，后端 API 不报错但会返回全量 490+ 条无关数据，"
-            "请先明确查询目标后再调用。"
+            "Error: search_researchers requires at least one of institution or name. "
+            "Call search_institutions first when the institution coverage is unclear."
         )
-    params: dict = {"page": page, "page_size": page_size}
+
+    params: dict[str, Any] = {"page": page, "page_size": page_size}
     if institution:
-        # 支持单字符串和列表两种形式，httpx 会将列表传成多个相同名参数（OR 逻辑）
         params["institution"] = institution if isinstance(institution, list) else [institution]
     if name:
         params["name"] = name
+
     try:
-        resp = httpx.get(
-            f"{_base_url()}{_people_search_path()}",
-            params=params,
-            headers=_headers(),
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        items = data.get("items", []) if isinstance(data, dict) else data
-        total = data.get("total", len(items)) if isinstance(data, dict) else len(items)
+        data = _get_json(_people_search_path(), params)
+        items = data.get("items", [])
+        total = data.get("total", len(items))
         simplified = []
-        for r in items:
-            inst_obj = r.get("current_institution") or {}
-            inst_name = (
-                inst_obj.get("standardized_name")
-                or inst_obj.get("name_cn")
-                or inst_obj.get("name_en")
-                or inst_obj.get("name")
-            ) if isinstance(inst_obj, dict) else None
-            simplified.append({
-                "name": r.get("name"),
-                "name_en": r.get("name_en"),
-                "institution": inst_name,
-                "position": r.get("position"),
-                "department": r.get("department"),
-                "email": r.get("email"),
-                "research_areas": r.get("research_areas", []),
-                "introduction_snippet": (r.get("introduction") or "")[:400],
-            })
+        for row in items:
+            institution_obj = row.get("current_institution") or {}
+            institution_name = None
+            if isinstance(institution_obj, dict):
+                institution_name = (
+                    institution_obj.get("standardized_name")
+                    or institution_obj.get("name_cn")
+                    or institution_obj.get("name_en")
+                    or institution_obj.get("name")
+                )
+            simplified.append(
+                {
+                    "name": row.get("name"),
+                    "name_en": row.get("name_en"),
+                    "institution": institution_name,
+                    "position": row.get("position"),
+                    "department": row.get("department"),
+                    "email": row.get("email"),
+                    "research_areas": row.get("research_areas", []),
+                    "introduction_snippet": (row.get("introduction") or "")[:400],
+                }
+            )
+
         return json.dumps(
-            {"total": total, "page": page, "page_size": page_size, "items": simplified},
-            ensure_ascii=False, indent=2,
+            {
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "items": simplified,
+            },
+            ensure_ascii=False,
+            indent=2,
         )
-    except Exception as e:
-        logger.error("search_researchers 失败: %s", e)
-        return json.dumps({"error": str(e), "items": []}, ensure_ascii=False)
+    except Exception as exc:
+        logger.error("search_researchers failed: %s", exc)
+        return json.dumps({"error": str(exc), "items": []}, ensure_ascii=False)

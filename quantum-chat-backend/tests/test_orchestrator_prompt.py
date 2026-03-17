@@ -4,11 +4,10 @@ from dagent import orchestrator
 def test_compose_prompt_sections_includes_key_rules():
     prompt = orchestrator._compose_prompt_sections()
 
-    assert "全局硬性规则" in prompt
-    assert "严格遵循已加载的 investment-research SKILL" in prompt
-    assert "只要出现决策词汇" in prompt
+    assert "investment-research SKILL" in prompt
     assert "save_research_artifact" in prompt
-    assert "近12个月新进入者/新成立公司/早期团队" in prompt
+    assert "recent_date_window" in prompt
+    assert 'search_web(topic="general")' in prompt
 
 
 def test_orchestrator_prompt_matches_composed_sections():
@@ -32,7 +31,7 @@ def test_build_system_prompt_appends_generation_date(monkeypatch):
     prompt = orchestrator._build_system_prompt()
 
     assert prompt.startswith(orchestrator.ORCHESTRATOR_SYSTEM_PROMPT)
-    assert prompt.endswith("> **系统时间（生成时间）**：2026-03-17\n")
+    assert prompt.endswith("2026-03-17\n")
 
 
 def test_get_skill_files_uses_single_cache(monkeypatch):

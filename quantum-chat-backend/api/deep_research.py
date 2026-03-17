@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/deep", tags=["deep-research"])
 
 _EVENT_QUEUE_MAXSIZE = 256
-_TOKEN_FLUSH_THRESHOLD = 160
+_TOKEN_FLUSH_THRESHOLD = 64
 
 
 class DeepRequest(BaseModel):

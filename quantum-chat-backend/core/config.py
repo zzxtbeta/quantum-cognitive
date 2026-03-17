@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     quantum_api_papers_sort_order: str = "desc"
     quantum_api_papers_include_stats: bool = False
     quantum_api_people_search_path: str = "/people/search"
+    quantum_api_institutions_search_path: str = "/institutions/search"
     quantum_api_news_path: str = "/news"
     quantum_api_news_search_path: str = "/news/search"
 

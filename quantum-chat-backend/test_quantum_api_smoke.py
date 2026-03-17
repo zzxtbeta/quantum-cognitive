@@ -7,6 +7,8 @@ from typing import Any
 
 import httpx
 
+__test__ = False
+
 
 def _load_env_from_file(env_path: Path) -> None:
     if not env_path.exists():

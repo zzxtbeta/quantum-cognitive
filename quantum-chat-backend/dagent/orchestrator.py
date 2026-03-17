@@ -27,6 +27,7 @@ from dagent.subagents.news_agent import news_market_subagent
 from dagent.subagents.paper_agent import paper_research_subagent
 from dagent.subagents.people_agent import people_intel_subagent
 from dagent.tools.cache_tools import save_research_artifact
+from dagent.tools.news_tools import recent_date_window, search_web, search_web_batch
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +186,8 @@ MODE_INFORMATION_SECTION = dedent(
     - 多源重复描述同一事件 → 只保留最权威/最完整版本
 
     **每条关键事实后跟编号引用；无可用链接时写 `[链接缺失，未采纳为关键结论]`**
+    - 如果用户问的是天气、最新公开动态、简单实时事实核验等通用问题，优先直接调用 `search_web(topic="general")` 或 `search_web_batch(...)`，不要错误声称自己不能联网搜索。
+    - 涉及“最近/最新/今日/本周/近期”时，先调用 `recent_date_window(...)` 锚定时间范围，再决定是否需要补充 `news-market` 子 Agent。
     **绝不包含**：评分矩阵、投资建议、推荐标的
     """
 ).strip()
@@ -285,7 +288,7 @@ async def _build_agent() -> None:
         store=_store,
         checkpointer=_checkpointer,
         skills=_SKILL_PATHS,
-        tools=[save_research_artifact],
+        tools=[save_research_artifact, recent_date_window, search_web, search_web_batch],
         name="quantum-orchestrator",
     )
     logger.info("Agent 构建完成 ✓ (preset=%s, model=%s)", config["preset"], config["model"])
