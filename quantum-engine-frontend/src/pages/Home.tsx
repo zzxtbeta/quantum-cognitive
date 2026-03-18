@@ -7,7 +7,6 @@ import {
   BookText,
   Building2,
   Clock,
-  Database,
   Flame,
   Layers,
   Newspaper,
@@ -27,9 +26,9 @@ import {
 import type { Signal } from '../types';
 
 const PRIORITY_TONE: Record<string, string> = {
-  high: 'text-red-500 bg-red-500/10 border-red-500/20',
-  mid: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
-  low: 'text-slate-400 bg-slate-500/10 border-slate-500/20',
+  high: 'text-red-700 bg-red-50 border-red-200',
+  mid: 'text-amber-700 bg-amber-50 border-amber-200',
+  low: 'text-slate-600 bg-slate-100 border-slate-200',
 };
 
 const quickLinks = [
@@ -37,42 +36,42 @@ const quickLinks = [
     to: '/signals',
     icon: Zap,
     label: '信号流',
-    desc: '实时追踪量子科技动态，查看论文、新闻与市场信号。',
+    desc: '追踪论文、新闻与市场动态的实时变化。',
     accent: 'from-amber-500 to-orange-500',
   },
   {
     to: '/candidates',
     icon: Building2,
     label: '公司库',
-    desc: '按公司名称、法人、省份、行业和状态筛选 Gold 层公司。',
+    desc: '筛选 Gold 层企业，快速发现重点公司与产业分布。',
     accent: 'from-blue-500 to-cyan-500',
   },
   {
     to: '/emerging-companies',
     icon: Radar,
     label: '新玩家雷达',
-    desc: '关注最近三个月注册且近期被报道的公司，发现早期 deal sourcing 线索。',
+    desc: '查看最近注册且近期被报道的公司，辅助 deal sourcing。',
     accent: 'from-emerald-500 to-lime-500',
   },
   {
     to: '/researchers',
     icon: Users,
     label: '人才库',
-    desc: '追踪核心研究团队、PI 与产业化转化路径。',
+    desc: '追踪核心研究者、机构团队和人才流动。',
     accent: 'from-violet-500 to-purple-600',
   },
   {
     to: '/knowledge',
-    icon: Database,
+    icon: BookText,
     label: '知识库',
-    desc: '按调研主题组织多 Agent 报告，方便回看和二次利用。',
+    desc: '查看多 Agent 研究报告与主题化沉淀文档。',
     accent: 'from-emerald-500 to-teal-500',
   },
   {
     to: '/knowledge-map',
     icon: Layers,
     label: '知识地图',
-    desc: '查看技术路线、公司与研究主题之间的关联结构。',
+    desc: '从技术路线和实体关系角度浏览研究脉络。',
     accent: 'from-teal-500 to-cyan-500',
   },
 ];
@@ -83,7 +82,7 @@ function formatRelativeDate(dateStr: string) {
   const diff = Date.now() - date.getTime();
   const days = Math.floor(diff / 86400000);
   if (days <= 0) return '今天';
-  if (days === 1) return '昨天';
+  if (days === 1) return '1 天前';
   if (days < 7) return `${days} 天前`;
   if (days < 30) return `${Math.floor(days / 7)} 周前`;
   return `${Math.floor(days / 30)} 个月前`;
@@ -103,21 +102,23 @@ function StatCard({
   tone: 'amber' | 'blue' | 'emerald' | 'violet';
 }) {
   const toneMap = {
-    amber: ['from-amber-500/20 to-orange-500/10', 'text-amber-500'],
-    blue: ['from-blue-500/20 to-cyan-500/10', 'text-blue-500'],
-    emerald: ['from-emerald-500/20 to-teal-500/10', 'text-emerald-500'],
-    violet: ['from-violet-500/20 to-purple-500/10', 'text-violet-500'],
+    amber: ['from-amber-500/20 to-orange-500/10', 'text-amber-600'],
+    blue: ['from-blue-500/20 to-cyan-500/10', 'text-blue-600'],
+    emerald: ['from-emerald-500/20 to-teal-500/10', 'text-emerald-600'],
+    violet: ['from-violet-500/20 to-purple-500/10', 'text-violet-600'],
   } as const;
 
   return (
-    <div className="glass-card rounded-2xl p-5 flex items-start gap-4">
-      <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${toneMap[tone][0]} flex items-center justify-center flex-shrink-0`}>
+    <div className="rounded-2xl border border-slate-200 bg-white/95 shadow-sm p-5 flex items-start gap-4">
+      <div
+        className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${toneMap[tone][0]} flex items-center justify-center flex-shrink-0`}
+      >
         <Icon className={`w-5 h-5 ${toneMap[tone][1]}`} />
       </div>
       <div className="min-w-0">
-        <p className="text-3xl font-bold text-[#e0e8ff] leading-none">{value}</p>
-        <p className="text-sm text-[#c8d4f0] mt-1">{label}</p>
-        <p className="text-[11px] text-[#8892aa] mt-1">{sub}</p>
+        <p className="text-3xl font-bold text-slate-900 leading-none">{value}</p>
+        <p className="text-sm text-slate-700 mt-1">{label}</p>
+        <p className="text-[11px] text-slate-500 mt-1">{sub}</p>
       </div>
     </div>
   );
@@ -125,36 +126,38 @@ function StatCard({
 
 function EmergingSignalCard({ item }: { item: EmergingCompanySignal }) {
   return (
-    <div className="glass-card rounded-2xl p-4 text-left">
+    <div className="rounded-2xl border border-slate-200 bg-white/95 shadow-sm p-4 text-left">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-[#e0e8ff]">{item.companyName}</p>
-          <p className="text-[11px] text-[#8892aa] mt-1">
+          <p className="text-sm font-semibold text-slate-900">{item.companyName}</p>
+          <p className="text-[11px] text-slate-500 mt-1">
             {[item.province, item.city].filter(Boolean).join(' / ') || '地区待补充'}
           </p>
         </div>
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border border-emerald-300/30 bg-emerald-400/10 text-emerald-300">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border border-emerald-200 bg-emerald-50 text-emerald-700">
           {item.newsCount || 0} 篇报道
         </span>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-[#8892aa]">
+      <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-slate-500">
         {item.legalPersonName && <span>法人：{item.legalPersonName}</span>}
-        {item.industry && <span>行业：{item.industry}</span>}
-        {item.creditCode && <span className="truncate">信用代码：{item.creditCode}</span>}
+        {item.creditCode && <span>信用代码：{item.creditCode}</span>}
+        {item.establishedAt && <span>成立：{item.establishedAt}</span>}
       </div>
 
       <div className="mt-3 space-y-2">
-        {item.newsItems.slice(0, 2).map((newsItem) => (
+        {item.newsItems.slice(0, 3).map((newsItem) => (
           <a
             key={newsItem.newsId}
             href={newsItem.url || undefined}
             target="_blank"
             rel="noopener noreferrer"
-            className="block rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 transition-colors"
+            className="block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 hover:bg-slate-100 transition-colors"
           >
-            <div className="text-[12px] text-[#d7e3ff] line-clamp-2">{newsItem.title || '未命名报道'}</div>
-            <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-[#8892aa]">
+            <div className="text-[12px] text-slate-800 line-clamp-2">
+              {newsItem.title || '暂无标题'}
+            </div>
+            <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-slate-500">
               {newsItem.source && <span>{newsItem.source}</span>}
               {newsItem.publishedAt && <span>{newsItem.publishedAt}</span>}
             </div>
@@ -216,18 +219,18 @@ export default function Home() {
     <div className="animate-fade-up space-y-8">
       <section className="flex items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] text-[#8892aa] tracking-[0.32em] uppercase mb-1.5 flex items-center gap-1.5">
+          <p className="text-[11px] text-slate-500 tracking-[0.32em] uppercase mb-1.5 flex items-center gap-1.5">
             <Activity className="w-3 h-3" />
             {dateLabel}
           </p>
           <h1 className="font-display text-4xl text-shimmer tracking-widest leading-tight">
             QUANTUM RADAR
           </h1>
-          <p className="text-[#8892aa] text-sm mt-1.5">
+          <p className="text-slate-600 text-sm mt-1.5">
             量子科技赛道实时认知引擎，围绕信号、公司、研究者与报告做联动追踪。
           </p>
         </div>
-        <div className="flex items-center gap-2 text-[11px] text-[#8892aa] whitespace-nowrap">
+        <div className="flex items-center gap-2 text-[11px] text-slate-500 whitespace-nowrap">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 dot-pulse" />
           <span>数据实时同步中</span>
         </div>
@@ -238,14 +241,14 @@ export default function Home() {
           icon={Zap}
           value={signalAggregateTotal || '...'}
           label="聚合信号"
-          sub="论文与新闻的混合追踪口径，不等同于新闻总量"
+          sub="论文与新闻信号统一入口"
           tone="amber"
         />
         <StatCard
           icon={BookText}
           value={knowledgeTotal ?? '...'}
           label="知识库文档"
-          sub="按调研主题沉淀的多 Agent 研究文档"
+          sub="多 Agent 报告与沉淀文档"
           tone="emerald"
         />
         <StatCard
@@ -259,20 +262,20 @@ export default function Home() {
           icon={Newspaper}
           value={newsTotal ?? '...'}
           label="新闻库条目"
-          sub="新闻检索主入口口径，可按来源与时间筛选"
+          sub="支持来源、时间与关键词组合检索"
           tone="violet"
         />
       </section>
 
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-[#c8d4f0] flex items-center gap-2">
-            <Radar className="w-4 h-4 text-emerald-400" />
+          <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+            <Radar className="w-4 h-4 text-emerald-500" />
             新玩家雷达
           </h2>
           <button
             onClick={() => navigate('/emerging-companies')}
-            className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+            className="text-[11px] text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
           >
             查看全部 <ArrowRight className="w-3 h-3" />
           </button>
@@ -284,21 +287,21 @@ export default function Home() {
             ))}
           </div>
         ) : (
-          <div className="glass-card rounded-2xl p-5 text-sm text-[#8892aa]">
-            暂无最新新玩家雷达信号。
+          <div className="rounded-2xl border border-slate-200 bg-white/95 shadow-sm p-5 text-sm text-slate-500">
+            暂时还没有可展示的新玩家雷达数据。
           </div>
         )}
       </section>
 
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-[#c8d4f0] flex items-center gap-2">
-            <Flame className="w-4 h-4 text-amber-400" />
+          <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+            <Flame className="w-4 h-4 text-amber-500" />
             最新信号
           </h2>
           <button
             onClick={() => navigate('/signals')}
-            className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+            className="text-[11px] text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
           >
             查看全部 <ArrowRight className="w-3 h-3" />
           </button>
@@ -308,27 +311,29 @@ export default function Home() {
             <button
               key={signal.id}
               onClick={() => navigate('/signals')}
-              className="glass-card rounded-2xl p-4 text-left group hover:border-blue-500/30 transition-all"
+              className="rounded-2xl border border-slate-200 bg-white/95 shadow-sm p-4 text-left group hover:border-blue-300 transition-all"
             >
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${PRIORITY_TONE[signal.priority]}`}>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${PRIORITY_TONE[signal.priority]}`}
+                  >
                     {signal.priority === 'high' ? '高优先' : signal.priority === 'mid' ? '中优先' : '低优先'}
                   </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[rgba(59,130,246,0.08)] text-blue-400 border border-[rgba(59,130,246,0.15)]">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                     {signal.type}
                   </span>
                 </div>
-                <span className="text-[10px] text-[#8892aa] flex items-center gap-1 shrink-0">
+                <span className="text-[10px] text-slate-500 flex items-center gap-1 shrink-0">
                   <Clock className="w-3 h-3" />
                   {signal.timestamp}
                 </span>
               </div>
 
-              <h3 className="text-sm font-semibold text-[#e0e8ff] group-hover:text-blue-300 transition-colors line-clamp-2">
+              <h3 className="text-sm font-semibold text-slate-900 group-hover:text-blue-700 transition-colors line-clamp-2">
                 {signal.title}
               </h3>
-              <p className="text-[11px] text-[#8892aa] mt-2 line-clamp-2 leading-relaxed">
+              <p className="text-[11px] text-slate-500 mt-2 line-clamp-2 leading-relaxed">
                 {signal.summary}
               </p>
             </button>
@@ -338,45 +343,45 @@ export default function Home() {
 
       <section>
         <div className="flex items-center gap-2 mb-3">
-          <BarChart2 className="w-4 h-4 text-blue-400" />
-          <h2 className="text-sm font-semibold text-[#c8d4f0]">功能导航</h2>
+          <BarChart2 className="w-4 h-4 text-blue-500" />
+          <h2 className="text-sm font-semibold text-slate-800">功能导航</h2>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {quickLinks.map(({ to, icon: Icon, label, desc, accent }) => (
             <button
               key={to}
               onClick={() => navigate(to)}
-              className="glass-card rounded-2xl p-4 text-left group hover:border-blue-500/30 transition-all duration-200 hover:scale-[1.01]"
+              className="rounded-2xl border border-slate-200 bg-white/95 shadow-sm p-4 text-left group hover:border-blue-300 transition-all duration-200 hover:scale-[1.01]"
             >
               <div className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${accent} flex items-center justify-center mb-3`}>
                 <Icon className="w-4.5 h-4.5 text-white" />
               </div>
-              <p className="text-sm font-semibold text-[#e0e8ff] mb-1 group-hover:text-blue-300 transition-colors">
+              <p className="text-sm font-semibold text-slate-900 mb-1 group-hover:text-blue-700 transition-colors">
                 {label}
               </p>
-              <p className="text-[11px] text-[#8892aa] leading-snug">{desc}</p>
+              <p className="text-[11px] text-slate-500 leading-snug">{desc}</p>
             </button>
           ))}
         </div>
       </section>
 
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="glass-card rounded-2xl p-5">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-[#8892aa] mb-2">我的关注</p>
-          <p className="text-2xl font-bold text-[#e0e8ff]">{focusItems.length}</p>
-          <p className="text-[12px] text-[#8892aa] mt-1">个人关注列表与提醒</p>
+        <div className="rounded-2xl border border-slate-200 bg-white/95 shadow-sm p-5">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">我的关注</p>
+          <p className="text-2xl font-bold text-slate-900">{focusItems.length}</p>
+          <p className="text-[12px] text-slate-500 mt-1">个人关注列表与提醒</p>
         </div>
-        <div className="glass-card rounded-2xl p-5">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-[#8892aa] mb-2">研究笔记</p>
-          <p className="text-2xl font-bold text-[#e0e8ff]">{notes.length}</p>
-          <p className="text-[12px] text-[#8892aa] mt-1">
+        <div className="rounded-2xl border border-slate-200 bg-white/95 shadow-sm p-5">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">研究笔记</p>
+          <p className="text-2xl font-bold text-slate-900">{notes.length}</p>
+          <p className="text-[12px] text-slate-500 mt-1">
             最近编辑 {notes[0] ? formatRelativeDate(notes[0].updatedAt) : '暂无'}
           </p>
         </div>
-        <div className="glass-card rounded-2xl p-5">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-[#8892aa] mb-2">知识库沉淀</p>
-          <p className="text-2xl font-bold text-[#e0e8ff]">{knowledgeTotal ?? '...'}</p>
-          <p className="text-[12px] text-[#8892aa] mt-1">支持按调研主题查看投研成果</p>
+        <div className="rounded-2xl border border-slate-200 bg-white/95 shadow-sm p-5">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">知识库文档</p>
+          <p className="text-2xl font-bold text-slate-900">{knowledgeTotal ?? '...'}</p>
+          <p className="text-[12px] text-slate-500 mt-1">多 Agent 报告与沉淀文档</p>
         </div>
       </section>
     </div>

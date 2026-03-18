@@ -45,6 +45,15 @@ class DeepResponse(BaseModel):
     content: str
 
 
+class KnowledgeTopicUpdateRequest(BaseModel):
+    item_ids: list[int]
+    research_topic: str
+
+
+class KnowledgeBatchDeleteRequest(BaseModel):
+    item_ids: list[int]
+
+
 # ─── 子Agent 友好名称映射 ──────────────────────────────────────────────────────
 _SUBAGENT_LABELS: dict[str, str] = {
     "paper-researcher": "📄 论文分析师",
@@ -661,14 +670,18 @@ async def list_knowledge_items(
 ):
     """列出知识条目（不含正文，节省带宽）。"""
     from core.knowledge_store import list_knowledge
-    items = list_knowledge(
-        category=category,
-        start_date=start_date,
-        end_date=end_date,
-        limit=limit,
-        offset=offset,
-    )
-    return {"items": items}
+    try:
+        items = list_knowledge(
+            category=category,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            offset=offset,
+        )
+        return {"items": items}
+    except Exception as exc:
+        logger.exception("Failed to list knowledge items: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to load knowledge items")
 
 
 @router.get("/knowledge/categories")
@@ -678,7 +691,7 @@ async def get_knowledge_categories():
     return {"categories": get_categories()}
 
 
-@router.get("/knowledge/{item_id}")
+@router.get("/knowledge/{item_id:int}")
 async def get_knowledge_item(item_id: int):
     """获取单条知识详情（含正文）。"""
     from core.knowledge_store import get_knowledge
@@ -688,7 +701,7 @@ async def get_knowledge_item(item_id: int):
     return item
 
 
-@router.get("/knowledge/{item_id}/download")
+@router.get("/knowledge/{item_id:int}/download")
 async def download_knowledge_item(item_id: int):
     """下载知识条目为 Markdown 文件。"""
     from core.knowledge_store import get_knowledge
@@ -706,7 +719,7 @@ async def download_knowledge_item(item_id: int):
     )
 
 
-@router.delete("/knowledge/{item_id}")
+@router.delete("/knowledge/{item_id:int}")
 async def delete_knowledge_item(item_id: int):
     """删除单条知识。"""
     from core.knowledge_store import delete_knowledge
@@ -714,3 +727,25 @@ async def delete_knowledge_item(item_id: int):
     if not ok:
         raise HTTPException(status_code=404, detail="Knowledge item not found")
     return {"deleted": True, "id": item_id}
+
+
+@router.patch("/knowledge/topic")
+async def update_knowledge_topic(req: KnowledgeTopicUpdateRequest):
+    """Batch update research topic metadata for knowledge items."""
+    from core.knowledge_store import update_knowledge_topic as update_batch_topic
+
+    topic = req.research_topic.strip()
+    if not topic:
+        raise HTTPException(status_code=400, detail="research_topic is required")
+
+    updated = update_batch_topic(req.item_ids, topic)
+    return {"updated": updated, "research_topic": topic}
+
+
+@router.delete("/knowledge/topic")
+async def delete_knowledge_topic(req: KnowledgeBatchDeleteRequest):
+    """Delete a whole topic group by knowledge item ids."""
+    from core.knowledge_store import delete_knowledge_batch
+
+    deleted = delete_knowledge_batch(req.item_ids)
+    return {"deleted": deleted}

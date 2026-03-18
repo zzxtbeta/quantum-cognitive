@@ -117,3 +117,45 @@ def test_recent_date_window_is_precise(monkeypatch):
         "end_date": "2026-03-17",
         "days_back": 30,
     }
+
+
+def test_fetch_latest_company_promotions_returns_compact_payload(monkeypatch):
+    class _FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "source_object_id": "source-1",
+                "source_processed_at": "2026-03-17T14:03:10Z",
+                "total_companies": 1,
+                "total_news_links": 2,
+                "items": [
+                    {
+                        "company_id": 2281,
+                        "name": "杭州珑枢科技有限公司",
+                        "credit_code": "91330110MAK6XKT087",
+                        "legal_person_name": "池得閤",
+                        "promoted_at": "2026-03-17T14:26:53.789448",
+                        "news_count": 1,
+                        "news_items": [
+                            {
+                                "news_id": 4898,
+                                "title": "剑桥大学博士在杭州兴起量子风暴",
+                                "uri": "https://mp.weixin.qq.com/s/demo",
+                                "website": "微信公众号湖畔自留田",
+                                "rtm": "2026-01-19",
+                            }
+                        ],
+                    }
+                ],
+            }
+
+    monkeypatch.setattr(news_tools.httpx, "get", lambda *args, **kwargs: _FakeResponse())
+
+    payload = news_tools.fetch_latest_company_promotions()
+    parsed = json.loads(payload)
+
+    assert parsed["total_companies"] == 1
+    assert parsed["items"][0]["name"] == "杭州珑枢科技有限公司"
+    assert parsed["items"][0]["news_items"][0]["uri"] == "https://mp.weixin.qq.com/s/demo"

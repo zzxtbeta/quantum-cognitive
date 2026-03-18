@@ -64,12 +64,6 @@ def search_institutions(
 ) -> str:
     """Search compact institution summaries from the private Gold layer."""
     params: dict[str, Any] = {"page": page, "page_size": page_size}
-    if keyword.strip():
-        params["keyword"] = keyword.strip()
-    if institution_type.strip():
-        params["institution_type"] = institution_type.strip()
-    if country.strip():
-        params["country"] = country.strip()
 
     try:
         data = _get_json(_institutions_search_path(), params)

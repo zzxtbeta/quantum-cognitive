@@ -1,218 +1,131 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { ChevronDown, ChevronRight, Clock, RefreshCw, Filter, Inbox, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, ChevronRight, Clock, Filter, RefreshCw, Trash2 } from 'lucide-react';
 import {
+  deleteToolLogSession,
   fetchToolLogs,
   fetchToolLogSessions,
   fetchToolNames,
   fetchToolTurns,
-  deleteToolLogSession,
   ToolLogEntry,
   ToolLogSession,
   ToolLogTurn,
 } from '../api/toolLogs';
 
-// ── 工具名 → 颜色映射（同 deep_research.py 中的类别） ───────────────────────
-function toolColor(tool: string): string {
-  if (tool.includes('paper') || tool.includes('scan')) return 'text-fuchsia-800 bg-fuchsia-100 border-fuchsia-300';
-  if (tool.includes('news') || tool.includes('market')) return 'text-amber-800 bg-amber-100 border-amber-300';
-  if (tool.includes('people') || tool.includes('search_people')) return 'text-cyan-800 bg-cyan-100 border-cyan-300';
-  if (tool.includes('task')) return 'text-emerald-800 bg-emerald-100 border-emerald-300';
-  if (tool.includes('file') || tool.includes('write') || tool.includes('read')) return 'text-slate-700 bg-slate-100 border-slate-300';
-  return 'text-blue-800 bg-blue-100 border-blue-300';
-}
+const ACTIVE_THREAD_KEY = 'gravity:active-thread';
+const PAGE_LIMIT = 50;
 
-function formatTs(ts: string): string {
+function formatTimestamp(ts: string): string {
   try {
-    const d = new Date(ts);
-    return d.toLocaleString('zh-CN', {
-      month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    const date = new Date(ts);
+    return date.toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
     });
-  } catch { return ts; }
+  } catch {
+    return ts;
+  }
 }
 
 function shortId(id: string): string {
-  return id.length > 14 ? id.slice(0, 10) + '…' + id.slice(-4) : id;
-}
-
-function turnLabel(turnId?: string | null): string {
-  if (!turnId) return '回合 legacy';
-  const t = turnId.replace(/^turn-/, '');
-  return `回合 ${shortId(t)}`;
+  return id.length > 14 ? `${id.slice(0, 10)}…${id.slice(-4)}` : id;
 }
 
 function normalizeTurnId(turnId?: string | null): string {
   return turnId && turnId.trim() ? turnId : 'legacy';
 }
 
-// ── 智能内容解析与渲染 ────────────────────────────────────────────────────────
-
-function unescapeStr(s: string): string {
-  return s.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '');
+function turnLabel(turnId?: string | null): string {
+  if (!turnId || turnId === 'legacy') return '历史调用';
+  return `回合 ${shortId(turnId.replace(/^turn-/, ''))}`;
 }
 
-type ParsedContent =
-  | { type: 'artifact'; meta: Record<string, unknown>; content: string }
-  | { type: 'json'; pretty: string }
-  | { type: 'text'; text: string };
+function toolColor(tool: string): string {
+  if (tool.includes('paper') || tool.includes('domain')) {
+    return 'text-fuchsia-800 bg-fuchsia-100 border-fuchsia-300';
+  }
+  if (tool.includes('news') || tool.includes('market') || tool.includes('web')) {
+    return 'text-amber-800 bg-amber-100 border-amber-300';
+  }
+  if (tool.includes('people') || tool.includes('institution')) {
+    return 'text-cyan-800 bg-cyan-100 border-cyan-300';
+  }
+  if (tool.includes('task') || tool.includes('agent')) {
+    return 'text-emerald-800 bg-emerald-100 border-emerald-300';
+  }
+  return 'text-blue-800 bg-blue-100 border-blue-300';
+}
 
-function parseContent(raw: string): ParsedContent {
+function parseMaybeJson(raw: string | null): string {
+  if (!raw) return '';
   const trimmed = raw.trim();
-
-  // 1. 试 JSON parse
   try {
-    const parsed = JSON.parse(trimmed);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const obj = parsed as Record<string, unknown>;
-      const content = obj['content'];
-      if (typeof content === 'string' && content.length > 150) {
-        const { content: _c, ...meta } = obj;
-        return { type: 'artifact', meta, content: unescapeStr(content) };
-      }
-    }
-    return { type: 'json', pretty: JSON.stringify(parsed, null, 2) };
-  } catch { /* not JSON */ }
-
-  // 2. LangChain ToolMessage repr: content='...' name='tool' tool_call_id='...'
-  const lcMatch = trimmed.match(/^content='([\s\S]+?)'\s+name=/);
-  if (lcMatch) {
-    const inner = unescapeStr(lcMatch[1].replace(/\\'/g, "'"));
-    try {
-      const parsed = JSON.parse(inner);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        const obj = parsed as Record<string, unknown>;
-        const content = obj['content'];
-        if (typeof content === 'string' && content.length > 150) {
-          const { content: _c, ...meta } = obj;
-          return { type: 'artifact', meta, content: unescapeStr(content) };
-        }
-      }
-      return { type: 'json', pretty: JSON.stringify(parsed, null, 2) };
-    } catch { /* not JSON */ }
-    return { type: 'text', text: inner };
+    return JSON.stringify(JSON.parse(trimmed), null, 2);
+  } catch {
+    return trimmed.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
   }
-
-  // 3. 纯文本，解转义
-  return { type: 'text', text: unescapeStr(trimmed) };
 }
 
-function ContentBlock({ raw }: { raw: string }) {
-  const p = parseContent(raw);
-
-  if (p.type === 'artifact') {
-    return (
-      <div className="space-y-2">
-        {Object.keys(p.meta).length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {Object.entries(p.meta).map(([k, v]) => (
-              <span key={k} className="inline-flex items-center gap-1 text-[11px] bg-slate-100 border border-slate-200 rounded-md px-2 py-0.5">
-                <span className="text-slate-500 font-mono">{k}:</span>
-                <span className="text-slate-800 font-semibold">{String(v)}</span>
-              </span>
-            ))}
-          </div>
-        )}
-        <pre className="text-[12px] text-slate-800 whitespace-pre-wrap break-words font-mono bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-[36rem] overflow-y-auto leading-relaxed">
-          {p.content}
-        </pre>
-      </div>
-    );
-  }
-
-  if (p.type === 'json') {
-    return (
-      <pre className="text-[12px] text-slate-800 whitespace-pre-wrap break-all font-mono bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-64 overflow-y-auto leading-relaxed">
-        {p.pretty}
-      </pre>
-    );
-  }
-
-  return (
-    <pre className="text-[12px] text-slate-800 whitespace-pre-wrap break-words font-mono bg-white border border-slate-200 rounded-lg px-3 py-2 max-h-64 overflow-y-auto leading-relaxed">
-      {p.text}
-    </pre>
-  );
-}
-
-// ── 单条日志卡片 ──────────────────────────────────────────────────────────────
 function LogCard({ entry }: { entry: ToolLogEntry }) {
   const [expanded, setExpanded] = useState(false);
   const isLlm = entry.tool === '__llm__';
-  const color = isLlm
-    ? 'text-violet-800 bg-violet-100 border-violet-300'
-    : toolColor(entry.tool);
-
   const tokenTotal = (entry.tokens_prompt ?? 0) + (entry.tokens_completion ?? 0);
 
   return (
-    <div className="border border-slate-300 rounded-xl overflow-hidden bg-white/85 shadow-sm transition-all">
-      {/* Header row */}
+    <div className="overflow-hidden rounded-xl border border-slate-300 bg-white/85 shadow-sm">
       <button
-        onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left"
+        onClick={() => setExpanded((value) => !value)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50"
       >
-        <span className={`inline-flex items-center gap-1.5 text-[12px] border rounded-md px-2 py-0.5 font-mono shrink-0 ${color}`}>
-          {isLlm ? '🤖' : '🔧'} {entry.label ?? entry.tool}
+        <span
+          className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[12px] ${
+            isLlm ? 'text-violet-800 bg-violet-100 border-violet-300' : toolColor(entry.tool)
+          }`}
+        >
+          {entry.label ?? entry.tool}
         </span>
         <span className="flex-1" />
-        {/* Token counts */}
         {isLlm && tokenTotal > 0 && (
-          <span className="flex items-center gap-1 text-[11px] text-violet-700 font-mono shrink-0 mr-1">
-            <span title="输入 tokens">↑{(entry.tokens_prompt ?? 0).toLocaleString()}</span>
-            <span className="text-slate-400">/</span>
-            <span title="输出 tokens">↓{(entry.tokens_completion ?? 0).toLocaleString()}</span>
-            <span className="text-slate-400 ml-0.5">=</span>
-            <span className="font-semibold">{tokenTotal.toLocaleString()}</span>
+          <span className="mr-2 shrink-0 font-mono text-[11px] text-violet-700">
+            {tokenTotal.toLocaleString()} tokens
           </span>
         )}
-        <span className="text-[11px] text-slate-700 shrink-0 mr-3 font-mono">{turnLabel(entry.turn_id)}</span>
         {entry.duration_ms != null && (
-          <span className="flex items-center gap-1 text-[12px] text-slate-700 shrink-0">
-            <Clock className="w-3 h-3" />
-            {entry.duration_ms < 1000
-              ? `${entry.duration_ms}ms`
-              : `${(entry.duration_ms / 1000).toFixed(1)}s`}
+          <span className="flex shrink-0 items-center gap-1 text-[12px] text-slate-600">
+            <Clock className="h-3 w-3" />
+            {entry.duration_ms < 1000 ? `${entry.duration_ms}ms` : `${(entry.duration_ms / 1000).toFixed(1)}s`}
           </span>
         )}
-        <span className="text-[12px] text-slate-700 shrink-0 ml-3">{formatTs(entry.ts)}</span>
-        <span className="ml-2 text-slate-700">
-          {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-        </span>
+        <span className="shrink-0 text-[12px] text-slate-600">{formatTimestamp(entry.ts)}</span>
+        {expanded ? <ChevronDown className="h-4 w-4 text-slate-500" /> : <ChevronRight className="h-4 w-4 text-slate-500" />}
       </button>
 
-      {/* Expandable detail */}
       {expanded && (
-        <div className="border-t border-slate-200 px-4 py-3 space-y-3 bg-slate-50/80">
-          {isLlm ? (
-            <div className="flex flex-wrap gap-3 text-[12px] font-mono text-slate-700">
-              <span>↑ Prompt: <strong>{(entry.tokens_prompt ?? 0).toLocaleString()}</strong></span>
-              <span>↓ Completion: <strong>{(entry.tokens_completion ?? 0).toLocaleString()}</strong></span>
-              <span>Σ Total: <strong>{tokenTotal.toLocaleString()}</strong></span>
-              {entry.duration_ms != null && (
-                <span>⏱ {(entry.duration_ms / 1000).toFixed(2)}s  
-                  <span className="text-slate-500">
-                    ({Math.round((entry.tokens_completion ?? 0) / (entry.duration_ms / 1000))} tok/s)
-                  </span>
-                </span>
-              )}
+        <div className="space-y-3 border-t border-slate-200 bg-slate-50/80 px-4 py-3">
+          {!isLlm && entry.input_str && (
+            <div>
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-slate-500">输入</p>
+              <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-[12px] text-slate-800">
+                {parseMaybeJson(entry.input_str)}
+              </pre>
             </div>
-          ) : (
-            <>
-              {entry.input_str && (
-                <div>
-                  <p className="text-[11px] text-slate-700 uppercase tracking-widest mb-1 font-semibold">输入</p>
-                  <ContentBlock raw={entry.input_str} />
-                </div>
-              )}
-              {entry.output_str ? (
-                <div>
-                  <p className="text-[11px] text-slate-700 uppercase tracking-widest mb-1 font-semibold">输出</p>
-                  <ContentBlock raw={entry.output_str} />
-                </div>
-              ) : (
-                <p className="text-[12px] text-slate-600 italic">（尚无输出记录）</p>
-              )}
-            </>
+          )}
+          {!isLlm && entry.output_str && (
+            <div>
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-slate-500">输出</p>
+              <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-[12px] text-slate-800">
+                {parseMaybeJson(entry.output_str)}
+              </pre>
+            </div>
+          )}
+          {isLlm && (
+            <div className="flex flex-wrap gap-4 font-mono text-[12px] text-slate-700">
+              <span>Prompt: {(entry.tokens_prompt ?? 0).toLocaleString()}</span>
+              <span>Completion: {(entry.tokens_completion ?? 0).toLocaleString()}</span>
+              <span>Total: {tokenTotal.toLocaleString()}</span>
+            </div>
           )}
         </div>
       )}
@@ -220,15 +133,13 @@ function LogCard({ entry }: { entry: ToolLogEntry }) {
   );
 }
 
-// ── 主页面 ────────────────────────────────────────────────────────────────────
 export default function ToolLogs() {
   const [sessions, setSessions] = useState<ToolLogSession[]>([]);
   const [turns, setTurns] = useState<ToolLogTurn[]>([]);
-  const [turnApiAvailable, setTurnApiAvailable] = useState(true);
   const [toolNames, setToolNames] = useState<string[]>([]);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
-  const [selectedTurn, setSelectedTurn] = useState<string>('');
-  const [selectedTool, setSelectedTool] = useState<string>('');
+  const [selectedTurn, setSelectedTurn] = useState('');
+  const [selectedTool, setSelectedTool] = useState('');
   const [logs, setLogs] = useState<ToolLogEntry[]>([]);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -236,68 +147,37 @@ export default function ToolLogs() {
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [collapsedTurns, setCollapsedTurns] = useState<Set<string>>(new Set());
-  const lastIdRef = useRef<number>(0);   // 增量刷新用：记录已加载的最大 id
-  const LIMIT = 50;
+  const lastIdRef = useRef(0);
 
-  const visibleLogs = useMemo(() => {
-    if (!selectedTurn) return logs;
-    // 前端兜底过滤：即使后端 turn_id 过滤未生效，UI 也能按回合展示正确结果
-    return logs.filter(l => normalizeTurnId(l.turn_id) === selectedTurn);
-  }, [logs, selectedTurn]);
-
-  const groupedLogs = useMemo(() => {
-    const groups: Array<{ turnId: string; entries: ToolLogEntry[]; startedAt?: string; endedAt?: string }> = [];
-    const indexMap = new Map<string, number>();
-    for (const entry of visibleLogs) {
-      const tid = normalizeTurnId(entry.turn_id);
-      const idx = indexMap.get(tid);
-      if (idx == null) {
-        indexMap.set(tid, groups.length);
-        groups.push({ turnId: tid, entries: [entry], startedAt: entry.ts, endedAt: entry.ts });
-      } else {
-        const g = groups[idx];
-        g.entries.push(entry);
-        g.endedAt = entry.ts;
+  const syncActiveThreadSelection = useCallback((availableSessions: ToolLogSession[]) => {
+    try {
+      const activeThreadId = localStorage.getItem(ACTIVE_THREAD_KEY);
+      if (!activeThreadId) return;
+      const exists = availableSessions.some((session) => session.thread_id === activeThreadId);
+      if (exists) {
+        setSelectedSession((current) => (current === activeThreadId ? current : activeThreadId));
       }
+    } catch {
+      // Ignore storage failures.
     }
-    return groups;
-  }, [visibleLogs]);
-
-  const toggleTurnCollapse = useCallback((turnId: string) => {
-    setCollapsedTurns(prev => {
-      const next = new Set(prev);
-      if (next.has(turnId)) next.delete(turnId);
-      else next.add(turnId);
-      return next;
-    });
   }, []);
 
   const loadSessions = useCallback(async () => {
     setLoadingSessions(true);
     setErrorMsg(null);
     try {
-      const data = await fetchToolLogSessions();
-      setSessions(data);
-      const names = await fetchToolNames();
-      setToolNames(names);
-    } catch (e: any) {
-      setErrorMsg(e?.message || '加载会话失败');
+      const [sessionData, toolData] = await Promise.all([fetchToolLogSessions(), fetchToolNames()]);
+      setSessions(sessionData);
+      setToolNames(toolData);
+      syncActiveThreadSelection(sessionData);
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : '加载工具日志会话失败');
     } finally {
       setLoadingSessions(false);
     }
-  }, []);
-
-  /** 静默刷新会话计数，不计入加载态 */
-  const silentRefreshSessions = useCallback(async () => {
-    try {
-      const data = await fetchToolLogSessions();
-      setSessions(data);
-    } catch { /* ignore */ }
-  }, []);
+  }, [syncActiveThreadSelection]);
 
   const loadTurns = useCallback(async () => {
-    if (!turnApiAvailable) return;
     if (!selectedSession) {
       setTurns([]);
       setSelectedTurn('');
@@ -306,298 +186,289 @@ export default function ToolLogs() {
     try {
       const data = await fetchToolTurns(selectedSession);
       setTurns(data);
-      // 不在自动刷新时强制清空 selectedTurn，避免“筛选闪一下就失效”的体验。
-    } catch (e: any) {
-      const msg = String(e?.message || '');
-      if (msg.includes('HTTP 404')) {
-        // 后端尚未升级到 turns 接口时，自动降级为仅按 thread 过滤
-        setTurnApiAvailable(false);
-        setTurns([]);
-        setSelectedTurn('');
-      } else {
-        setErrorMsg(e?.message || '加载回合失败');
-      }
+    } catch (error) {
+      setTurns([]);
+      setErrorMsg(error instanceof Error ? error.message : '加载回合列表失败');
     }
-  }, [selectedSession, turnApiAvailable]);
+  }, [selectedSession]);
 
-  const loadLogs = useCallback(async (reset = true) => {
-    setLoadingLogs(true);
-    setErrorMsg(null);
-    const nextOffset = reset ? 0 : offset;
-    try {
-      const data = await fetchToolLogs({
-        thread_id: selectedSession ?? undefined,
-        turn_id: selectedTurn || undefined,
-        tool: selectedTool || undefined,
-        limit: LIMIT,
-        offset: nextOffset,
-      });
-      setLogs(prev => reset ? data : [...prev, ...data]);
-      setOffset(nextOffset + data.length);
-      setHasMore(data.length === LIMIT);
-      if (reset && data.length > 0) {
-        lastIdRef.current = Math.max(...data.map(l => l.id));
+  const loadLogs = useCallback(
+    async (reset: boolean) => {
+      setLoadingLogs(true);
+      setErrorMsg(null);
+      const requestOffset = reset ? 0 : offset;
+      try {
+        const data = await fetchToolLogs({
+          thread_id: selectedSession ?? undefined,
+          turn_id: selectedTurn || undefined,
+          tool: selectedTool || undefined,
+          limit: PAGE_LIMIT,
+          offset: requestOffset,
+        });
+        setLogs((prev) => (reset ? data : [...prev, ...data]));
+        setOffset(requestOffset + data.length);
+        setHasMore(data.length === PAGE_LIMIT);
+        lastIdRef.current = data.length > 0 ? Math.max(...data.map((entry) => entry.id)) : 0;
+      } catch (error) {
+        setErrorMsg(error instanceof Error ? error.message : '加载工具日志失败');
+      } finally {
+        setLoadingLogs(false);
       }
-    } catch (e: any) {
-      setErrorMsg(e?.message || '加载日志失败');
-    } finally {
-      setLoadingLogs(false);
-    }
-  }, [selectedSession, selectedTurn, selectedTool, offset]);
+    },
+    [offset, selectedSession, selectedTool, selectedTurn],
+  );
 
-  /** 增量只拉取 id > lastIdRef 的条目，不重置滚动位置 */
   const appendNewLogs = useCallback(async () => {
     if (lastIdRef.current === 0) return;
     try {
-      const newEntries = await fetchToolLogs({
+      const entries = await fetchToolLogs({
         thread_id: selectedSession ?? undefined,
         turn_id: selectedTurn || undefined,
         tool: selectedTool || undefined,
-        limit: LIMIT,
+        limit: PAGE_LIMIT,
         after_id: lastIdRef.current,
       });
-      if (newEntries.length > 0) {
-        setLogs(prev => [...prev, ...newEntries]);
-        lastIdRef.current = Math.max(...newEntries.map(l => l.id));
-      }
-    } catch { /* 静默失败 */ }
-  }, [selectedSession, selectedTurn, selectedTool]);
+      if (entries.length === 0) return;
+      setLogs((prev) => [...entries, ...prev]);
+      lastIdRef.current = Math.max(...entries.map((entry) => entry.id));
+    } catch {
+      // Ignore lightweight refresh failures.
+    }
+  }, [selectedSession, selectedTool, selectedTurn]);
 
   useEffect(() => {
-    loadSessions();
+    void loadSessions();
   }, [loadSessions]);
 
   useEffect(() => {
     setSelectedTurn('');
-    if (turnApiAvailable) loadTurns();
-  }, [selectedSession, loadTurns, turnApiAvailable]);
+    void loadTurns();
+  }, [loadTurns]);
 
   useEffect(() => {
     setOffset(0);
-    loadLogs(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadLogs(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSession, selectedTurn, selectedTool]);
 
   useEffect(() => {
-    if (!autoRefresh) return;
+    if (!autoRefresh) return undefined;
     const timer = window.setInterval(() => {
-      silentRefreshSessions();                                      // 静默更新会话计数
-      if (selectedSession && turnApiAvailable) loadTurns();         // 更新回合列表
-      appendNewLogs();                                              // 增量追加新的日志条目
-    }, 10000);  // 10s 轻量周期轮询
+      void (async () => {
+        try {
+          const sessionData = await fetchToolLogSessions();
+          setSessions(sessionData);
+          syncActiveThreadSelection(sessionData);
+        } catch {
+          // Ignore polling errors.
+        }
+        if (selectedSession) {
+          void loadTurns();
+        }
+        void appendNewLogs();
+      })();
+    }, 10000);
     return () => window.clearInterval(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefresh, selectedSession, turnApiAvailable, silentRefreshSessions, loadTurns, appendNewLogs]);
+  }, [appendNewLogs, autoRefresh, loadTurns, selectedSession, syncActiveThreadSelection]);
+
+  const visibleLogs = useMemo(() => {
+    if (!selectedTurn) return logs;
+    return logs.filter((entry) => normalizeTurnId(entry.turn_id) === selectedTurn);
+  }, [logs, selectedTurn]);
+
+  const groupedLogs = useMemo(() => {
+    const groups: Array<{ turnId: string; entries: ToolLogEntry[]; startedAt?: string; endedAt?: string }> = [];
+    const groupIndex = new Map<string, number>();
+    for (const entry of visibleLogs) {
+      const turnId = normalizeTurnId(entry.turn_id);
+      const existingIndex = groupIndex.get(turnId);
+      if (existingIndex == null) {
+        groupIndex.set(turnId, groups.length);
+        groups.push({ turnId, entries: [entry], startedAt: entry.ts, endedAt: entry.ts });
+      } else {
+        const group = groups[existingIndex];
+        group.entries.push(entry);
+        group.startedAt = group.startedAt && group.startedAt < entry.ts ? group.startedAt : entry.ts;
+        group.endedAt = group.endedAt && group.endedAt > entry.ts ? group.endedAt : entry.ts;
+      }
+    }
+    return groups;
+  }, [visibleLogs]);
 
   return (
-    <div className="flex gap-5 h-[calc(100vh-8rem)]">
-      {/* ── 左侧：会话列表 ────────────────────────────────────────────────── */}
-      <div className="w-64 shrink-0 flex flex-col gap-2">
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="text-[11px] text-slate-700 uppercase tracking-widest font-semibold">会话</h2>
+    <div className="flex h-[calc(100vh-8rem)] gap-5">
+      <div className="flex w-64 shrink-0 flex-col gap-2">
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-700">会话</h2>
           <button
-            onClick={loadSessions}
-            className="p-1 rounded hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition-colors"
+            onClick={() => void loadSessions()}
+            className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
             title="刷新会话"
           >
-            <RefreshCw className="w-3 h-3" />
+            <RefreshCw className="h-4 w-4" />
           </button>
         </div>
 
-        {/* 全部 */}
         <button
           onClick={() => setSelectedSession(null)}
-          className={`flex items-center justify-between px-3 py-2 rounded-lg text-[12px] transition-all border ${
+          className={`flex items-center justify-between rounded-lg border px-3 py-2 text-[12px] transition-all ${
             selectedSession === null
-              ? 'bg-blue-100 border-blue-300 text-blue-800'
-              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-slate-300'
+              ? 'border-blue-300 bg-blue-100 text-blue-800'
+              : 'border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
           <span>全部会话</span>
-          <span className="font-mono text-[11px] text-slate-700">{sessions.reduce((s, x) => s + x.call_count, 0)}</span>
+          <span className="font-mono text-[11px]">{sessions.reduce((sum, session) => sum + session.call_count, 0)}</span>
         </button>
 
-        {loadingSessions ? (
-          <div className="text-[11px] text-slate-600 pl-2 animate-pulse">加载中…</div>
-        ) : (
-          <div className="flex flex-col gap-1 overflow-y-auto min-h-0">
-            {sessions.map(s => (
+        <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+          {loadingSessions && <div className="px-2 py-6 text-center text-sm text-slate-500">正在加载会话…</div>}
+          {!loadingSessions &&
+            sessions.map((session) => (
               <div
-                key={s.thread_id}
-                className={`group flex items-center gap-1 rounded-lg transition-all border ${
-                  selectedSession === s.thread_id
-                    ? 'bg-blue-100 border-blue-300 text-blue-800'
-                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 border-slate-300'
+                key={session.thread_id}
+                className={`group flex items-center gap-1 rounded-lg border transition-all ${
+                  selectedSession === session.thread_id
+                    ? 'border-blue-300 bg-blue-100 text-blue-800'
+                    : 'border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
                 <button
-                  onClick={() => setSelectedSession(s.thread_id)}
-                  className="flex-1 flex flex-col items-start px-3 py-2 text-left min-w-0"
+                  onClick={() => setSelectedSession(session.thread_id)}
+                  className="min-w-0 flex-1 px-3 py-2 text-left"
                 >
-                  <span className="font-mono text-[12px] truncate w-full">{shortId(s.thread_id)}</span>
-                  <span className="text-[11px] opacity-85 flex gap-2 mt-0.5">
-                    <span>{s.call_count} 次</span>
-                    <span>{formatTs(s.last_activity)}</span>
-                  </span>
+                  <div className="truncate font-mono text-[12px]">{shortId(session.thread_id)}</div>
+                  <div className="mt-0.5 flex gap-2 text-[11px] opacity-85">
+                    <span>{session.call_count} 条</span>
+                    <span>{formatTimestamp(session.last_activity)}</span>
+                  </div>
                 </button>
                 <button
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (!confirm(`删除此会话的所有工具日志？`)) return;
+                  onClick={async () => {
                     try {
-                      await deleteToolLogSession(s.thread_id);
-                      setSessions(prev => prev.filter(x => x.thread_id !== s.thread_id));
-                      if (selectedSession === s.thread_id) {
+                      await deleteToolLogSession(session.thread_id);
+                      setSessions((prev) => prev.filter((item) => item.thread_id !== session.thread_id));
+                      if (selectedSession === session.thread_id) {
                         setSelectedSession(null);
                         setLogs([]);
                       }
-                    } catch { /* ignore */ }
+                    } catch {
+                      // Ignore delete failures.
+                    }
                   }}
-                  className="p-1.5 mr-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600 text-slate-400 transition-all shrink-0"
+                  className="mr-1.5 rounded-md p-1.5 text-slate-400 opacity-0 transition-all hover:bg-red-100 hover:text-red-600 group-hover:opacity-100"
                   title="删除此会话日志"
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             ))}
-            {sessions.length === 0 && (
-              <p className="text-[11px] text-slate-600 pl-2">暂无记录</p>
-            )}
-          </div>
-        )}
+        </div>
       </div>
 
-      {/* ── 右侧：日志主区域 ──────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="mb-4 animate-fade-up">
-          <h1 className="font-display text-4xl text-shimmer tracking-widest mb-1">TOOL LOGS</h1>
-          <p className="text-slate-700 text-sm">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="mb-4">
+          <h1 className="mb-1 font-display text-4xl tracking-widest text-shimmer">TOOL LOGS</h1>
+          <p className="text-sm text-slate-700">
             工具调用记录
-            {selectedSession && (
-              <span className="ml-2 font-mono text-cyan-700 text-xs"># {shortId(selectedSession)}</span>
-            )}
-            {selectedTurn && (
-              <span className="ml-2 font-mono text-fuchsia-700 text-xs">· {turnLabel(selectedTurn)}</span>
-            )}
-            {logs.length > 0 && (
-              <span className="ml-2 text-blue-700 font-semibold">{visibleLogs.length} 条</span>
-            )}
+            {selectedSession && <span className="ml-2 font-mono text-xs text-cyan-700"># {shortId(selectedSession)}</span>}
+            {selectedTurn && <span className="ml-2 font-mono text-xs text-fuchsia-700">· {turnLabel(selectedTurn)}</span>}
+            {logs.length > 0 && <span className="ml-2 font-semibold text-blue-700">{visibleLogs.length} 条</span>}
           </p>
         </div>
 
-        {/* Toolbar */}
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
-          <div className="flex items-center gap-1.5 text-slate-600">
-            <Filter className="w-3.5 h-3.5" />
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-300 bg-white/80 px-4 py-3 shadow-sm">
+          <div className="flex items-center gap-2 text-slate-600">
+            <Filter className="h-4 w-4" />
           </div>
-
           <select
             value={selectedTurn}
-            onChange={e => setSelectedTurn(e.target.value)}
-            disabled={!selectedSession || !turnApiAvailable}
-            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-[12px] text-slate-800 focus:outline-none focus:border-blue-500 transition-all disabled:opacity-50"
+            onChange={(event) => setSelectedTurn(event.target.value)}
+            disabled={!selectedSession}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12px] text-slate-800 transition-all focus:border-blue-500 focus:outline-none disabled:opacity-50"
           >
             <option value="">全部回合</option>
-            {turns.map(t => (
-              <option key={t.turn_id} value={t.turn_id}>{turnLabel(t.turn_id)} · {t.call_count} 次</option>
+            {turns.map((turn) => (
+              <option key={turn.turn_id} value={turn.turn_id}>
+                {turnLabel(turn.turn_id)} · {turn.call_count} 条
+              </option>
             ))}
           </select>
-
-          {!turnApiAvailable && (
-            <span className="text-[11px] px-2 py-1 rounded border border-amber-400/30 bg-amber-900/25 text-amber-100">
-              后端未启用回合接口，当前按 thread 展示
-            </span>
-          )}
 
           <select
             value={selectedTool}
-            onChange={e => setSelectedTool(e.target.value)}
-            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-[12px] text-slate-800 focus:outline-none focus:border-blue-500 transition-all"
+            onChange={(event) => setSelectedTool(event.target.value)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12px] text-slate-800 transition-all focus:border-blue-500 focus:outline-none"
           >
             <option value="">全部工具</option>
-            {toolNames.map(t => (
-              <option key={t} value={t}>{t}</option>
+            {toolNames.map((toolName) => (
+              <option key={toolName} value={toolName}>
+                {toolName}
+              </option>
             ))}
           </select>
+
           <button
-            onClick={() => loadLogs(true)}
-            disabled={loadingLogs}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] bg-blue-100 hover:bg-blue-200 border border-blue-300 rounded-lg text-blue-800 transition-all disabled:opacity-50"
+            onClick={() => void loadLogs(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-100 px-3 py-1.5 text-[12px] text-blue-800 transition-all hover:bg-blue-200"
           >
-            <RefreshCw className={`w-3 h-3 ${loadingLogs ? 'animate-spin' : ''}`} />
+            <RefreshCw className="h-3.5 w-3.5" />
             刷新
           </button>
 
           <button
-            onClick={() => setAutoRefresh(v => !v)}
-            className={`px-3 py-1.5 text-[12px] rounded-lg border transition-all ${
+            onClick={() => setAutoRefresh((value) => !value)}
+            className={`rounded-lg border px-3 py-1.5 text-[12px] transition-all ${
               autoRefresh
-                ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
-                : 'bg-slate-100 border-slate-300 text-slate-700'
+                ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                : 'border-slate-300 bg-slate-100 text-slate-700'
             }`}
           >
             实时刷新 {autoRefresh ? 'ON' : 'OFF'}
           </button>
         </div>
 
-        {errorMsg && (
-          <div className="mb-3 px-3 py-2 text-[12px] rounded-lg border border-red-400/40 bg-red-900/30 text-red-100">
-            工具日志加载失败：{errorMsg}
-          </div>
-        )}
+        {errorMsg && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMsg}</div>}
 
-        {/* Log entries */}
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {loadingLogs && visibleLogs.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-slate-700 text-sm animate-pulse">
-              加载中…
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          {loadingLogs && logs.length === 0 ? (
+            <div className="rounded-xl border border-slate-300 bg-white/80 px-6 py-10 text-center text-sm text-slate-500 shadow-sm">
+              正在加载工具日志…
             </div>
-          ) : visibleLogs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-40 text-slate-700">
-              <Inbox className="w-8 h-8 mb-2 opacity-70" />
-              <p className="text-sm">暂无工具调用记录</p>
-              <p className="text-xs mt-1 opacity-90">在 DeepAgent 模式发起一次对话后，记录将出现在此处</p>
+          ) : groupedLogs.length === 0 ? (
+            <div className="rounded-xl border border-slate-300 bg-white/80 px-6 py-10 text-center text-sm text-slate-500 shadow-sm">
+              当前筛选条件下没有找到日志。
             </div>
           ) : (
-            <>
-              {groupedLogs.map(group => (
-                <div key={group.turnId} className="space-y-2">
-                  <button
-                    onClick={() => toggleTurnCollapse(group.turnId)}
-                    className="sticky top-0 z-10 w-full bg-white/90 backdrop-blur border border-slate-200 rounded-lg px-3 py-1.5 flex items-center gap-2 hover:bg-white transition-colors"
-                  >
-                    {collapsedTurns.has(group.turnId)
-                      ? <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
-                      : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
-                    <span className="text-[11px] font-semibold text-fuchsia-800 bg-fuchsia-100 border border-fuchsia-300 rounded px-2 py-0.5">
+            <div className="space-y-5">
+              {groupedLogs.map((group) => (
+                <section key={group.turnId} className="space-y-3">
+                  <div className="flex items-center gap-3 rounded-xl border border-slate-300 bg-white/85 px-4 py-3 shadow-sm">
+                    <span className="rounded-md border border-fuchsia-300 bg-fuchsia-100 px-2 py-0.5 font-mono text-[12px] text-fuchsia-800">
                       {turnLabel(group.turnId)}
                     </span>
-                    <span className="text-[11px] text-slate-600">{group.entries.length} 条</span>
-                    {group.startedAt && (
-                      <span className="text-[11px] text-slate-500 font-mono">{formatTs(group.startedAt)}</span>
-                    )}
-                    {group.endedAt && group.endedAt !== group.startedAt && (
-                      <span className="text-[11px] text-slate-500 font-mono">~ {formatTs(group.endedAt)}</span>
-                    )}
-                  </button>
-                  {!collapsedTurns.has(group.turnId) && (
-                    <div className="space-y-2">
-                      {group.entries.map(entry => <LogCard key={entry.id} entry={entry} />)}
-                    </div>
-                  )}
-                </div>
+                    <span className="text-[12px] text-slate-600">{group.entries.length} 条</span>
+                    <span className="text-[12px] text-slate-500">
+                      {group.startedAt ? formatTimestamp(group.startedAt) : '--'} ~ {group.endedAt ? formatTimestamp(group.endedAt) : '--'}
+                    </span>
+                  </div>
+                  {group.entries.map((entry) => (
+                    <LogCard key={entry.id} entry={entry} />
+                  ))}
+                </section>
               ))}
-              {hasMore && (
-                <button
-                  onClick={() => loadLogs(false)}
-                  disabled={loadingLogs}
-                  className="w-full py-2 text-[12px] text-slate-700 hover:text-blue-800 border border-dashed border-slate-300 rounded-xl transition-colors disabled:opacity-50"
-                >
-                  {loadingLogs ? '加载中…' : '加载更多'}
-                </button>
-              )}
-            </>
+            </div>
+          )}
+
+          {hasMore && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => void loadLogs(false)}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100"
+              >
+                加载更多
+              </button>
+            </div>
           )}
         </div>
       </div>

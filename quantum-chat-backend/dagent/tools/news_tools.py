@@ -198,6 +198,13 @@ def _news_search_path() -> str:
     return path if path.startswith("/") else f"/{path}"
 
 
+def _company_promotions_path() -> str:
+    from core.config import settings
+
+    path = (settings.quantum_api_company_promotions_path or "/companies/internal/promotions/latest").strip()
+    return path if path.startswith("/") else f"/{path}"
+
+
 def query_news_db(
     source: Optional[str] = None,
     start_date: Optional[str] = None,
@@ -287,4 +294,52 @@ def semantic_search_news(query: str, top_k: int = 8) -> str:
         )
     except Exception as exc:
         logger.error("semantic_search_news failed: %s", exc)
+        return f"Error: {exc}"
+
+
+def fetch_latest_company_promotions() -> str:
+    """Fetch the latest promoted companies that were recently registered and mentioned by news."""
+    try:
+        response = httpx.get(
+            f"{_news_base_url()}{_company_promotions_path()}",
+            headers=_news_headers(),
+            timeout=20,
+        )
+        response.raise_for_status()
+        data = response.json()
+        items = data.get("items", []) if isinstance(data, dict) else []
+        simplified = [
+            {
+                "company_id": item.get("company_id"),
+                "name": item.get("name"),
+                "credit_code": item.get("credit_code"),
+                "legal_person_name": item.get("legal_person_name"),
+                "promoted_at": item.get("promoted_at"),
+                "news_count": item.get("news_count"),
+                "news_items": [
+                    {
+                        "news_id": news.get("news_id"),
+                        "title": news.get("title"),
+                        "uri": news.get("uri"),
+                        "website": news.get("website"),
+                        "rtm": news.get("rtm"),
+                    }
+                    for news in item.get("news_items", [])
+                ],
+            }
+            for item in items
+        ]
+        return json.dumps(
+            {
+                "source_object_id": data.get("source_object_id") if isinstance(data, dict) else None,
+                "source_processed_at": data.get("source_processed_at") if isinstance(data, dict) else None,
+                "total_companies": data.get("total_companies", len(simplified)) if isinstance(data, dict) else len(simplified),
+                "total_news_links": data.get("total_news_links", 0) if isinstance(data, dict) else 0,
+                "items": simplified,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    except Exception as exc:
+        logger.error("fetch_latest_company_promotions failed: %s", exc)
         return f"Error: {exc}"

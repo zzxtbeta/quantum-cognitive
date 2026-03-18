@@ -71,8 +71,30 @@ export function downloadKnowledgeItem(id: number) {
   window.open(`${CHAT_BASE}/deep/knowledge/${id}/download`, '_blank');
 }
 
+function fallbackCopyText(content: string) {
+  const textarea = document.createElement('textarea');
+  textarea.value = content;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  textarea.style.pointerEvents = 'none';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  const copied = document.execCommand('copy');
+  document.body.removeChild(textarea);
+  if (!copied) {
+    throw new Error('浏览器复制失败，请手动复制内容');
+  }
+}
+
 export async function copyKnowledgeContent(content: string): Promise<void> {
-  await navigator.clipboard.writeText(content);
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(content);
+    return;
+  }
+  fallbackCopyText(content);
 }
 
 export function exportKnowledgeAsPdf(title: string, html: string) {
@@ -164,7 +186,7 @@ export function exportKnowledgeAsPdf(title: string, html: string) {
 <body>
   <main>
     <h1>${safeTitle}</h1>
-    <div class="meta">请在浏览器打印对话框中选择“另存为 PDF”。</div>
+    <div class="meta">导出后请在浏览器打印面板中选择“另存为 PDF”。</div>
     ${html}
   </main>
   <script>
@@ -192,4 +214,35 @@ export async function deleteKnowledgeItem(id: number): Promise<boolean> {
   const res = await fetch(`${CHAT_BASE}/deep/knowledge/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return true;
+}
+
+export async function updateKnowledgeTopic(
+  itemIds: number[],
+  researchTopic: string,
+): Promise<number> {
+  const res = await fetch(`${CHAT_BASE}/deep/knowledge/topic`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item_ids: itemIds, research_topic: researchTopic }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+  }
+  const payload = (await res.json()) as { updated: number };
+  return payload.updated;
+}
+
+export async function deleteKnowledgeTopic(itemIds: number[]): Promise<number> {
+  const res = await fetch(`${CHAT_BASE}/deep/knowledge/topic`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item_ids: itemIds }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+  }
+  const payload = (await res.json()) as { deleted: number };
+  return payload.deleted;
 }
